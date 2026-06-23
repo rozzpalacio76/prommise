@@ -1,0 +1,2023 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0E14">
+<title>ProMMISES — Project Cluster</title>
+<meta name="description" content="Offline-capable project management dashboard with an EV instrument-cluster interface.">
+<!-- Progressive Web App: installable + offline-capable when hosted -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A0E14'/%3E%3Cpath d='M12 4a8 8 0 1 0 8 8' fill='none' stroke='%2316E0C8' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='12' r='1.8' fill='%2316E0C8'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ProMMISES">
+<style>
+  /* ============================ THEME TOKENS ============================ */
+  :root{
+    --bg:#0A0E14;            /* instrument black */
+    --bg-2:#0D131C;          /* deep panel well */
+    --panel:#141A24;         /* card surface */
+    --panel-2:#192230;       /* raised surface */
+    --line:#243042;          /* hairline */
+    --line-soft:#1b2533;
+    --txt:#E7EEF6;           /* primary text */
+    --txt-2:#9AA9BD;         /* secondary */
+    --txt-3:#5E6E84;         /* tertiary / captions */
+    --cyan:#16E0C8;          /* charge */
+    --green:#5BF08A;         /* ready */
+    --amber:#FFB020;         /* watch */
+    --red:#FF4D5E;           /* critical */
+    --blue:#4DA8FF;          /* nav */
+    --glow:0 0 22px;
+    --r:16px;                /* radius */
+    --r-sm:10px;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code","Roboto Mono",Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --pad:clamp(14px,2.4vw,26px);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 70% -10%, rgba(22,224,200,.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(77,168,255,.06), transparent 55%),
+      var(--bg);
+    color:var(--txt);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    letter-spacing:.2px;
+  }
+  ::selection{background:rgba(22,224,200,.3)}
+  button{font-family:inherit}
+  input,select,textarea{font-family:inherit}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:6px}
+
+  .app{max-width:1180px;margin:0 auto;padding:0 var(--pad) 64px;}
+
+  /* ============================ HEADER ============================ */
+  header.topbar{
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:14px var(--pad);
+    margin:0 calc(-1 * var(--pad)) 0;
+    background:linear-gradient(180deg, rgba(10,14,20,.96), rgba(10,14,20,.78));
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line-soft);
+  }
+  .brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:none;
+    background:radial-gradient(circle at 30% 25%, #20303f, #0c131b);
+    border:1px solid var(--line);
+    display:grid;place-items:center;position:relative;
+    box-shadow:inset 0 0 14px rgba(22,224,200,.12);
+  }
+  .logo svg{width:22px;height:22px}
+  .brand h1{
+    font-size:18px;margin:0;font-weight:700;letter-spacing:3px;
+  }
+  .brand h1 b{color:var(--cyan);font-weight:700}
+  .brand .sub{font-size:10.5px;letter-spacing:2.5px;color:var(--txt-3);text-transform:uppercase;margin-top:1px}
+
+  .proj-switch{display:flex;align-items:center;gap:8px}
+  select.sel,.btn{
+    background:var(--panel);border:1px solid var(--line);color:var(--txt);
+    padding:9px 13px;border-radius:11px;font-size:13px;cursor:pointer;
+    transition:border-color .15s, background .15s, transform .05s;
+  }
+  select.sel{min-width:150px;max-width:46vw}
+  .btn:hover{border-color:var(--cyan);background:var(--panel-2)}
+  .btn:active{transform:translateY(1px)}
+  .btn.icon{display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(180deg,#15c2ae,#0e9c8c);border-color:transparent;color:#04120f;font-weight:700}
+  .btn.primary:hover{box-shadow:var(--glow) rgba(22,224,200,.35)}
+  .btn.ghost{background:transparent}
+  .btn svg{width:15px;height:15px}
+
+  /* ============================ TABS ============================ */
+  nav.tabs{
+    display:flex;gap:6px;overflow:auto;-webkit-overflow-scrolling:touch;
+    padding:14px 0 18px;position:sticky;top:67px;z-index:30;
+    background:linear-gradient(180deg,var(--bg),rgba(10,14,20,0));
+  }
+  nav.tabs::-webkit-scrollbar{display:none}
+  .tab{
+    flex:none;display:inline-flex;align-items:center;gap:8px;
+    padding:10px 16px;border-radius:999px;cursor:pointer;white-space:nowrap;
+    background:var(--panel);border:1px solid var(--line);color:var(--txt-2);
+    font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:600;
+    transition:.15s;
+  }
+  .tab svg{width:15px;height:15px;opacity:.85}
+  .tab[aria-selected="true"]{
+    color:var(--bg);background:linear-gradient(180deg,#1ee9d0,#11b6a3);
+    border-color:transparent;box-shadow:var(--glow) rgba(22,224,200,.28);
+  }
+  .tab:not([aria-selected="true"]):hover{border-color:var(--cyan);color:var(--txt)}
+
+  /* ============================ LAYOUT ============================ */
+  .view{display:none;animation:fade .25s ease both}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .grid{display:grid;gap:16px}
+  .cluster{grid-template-columns:1.3fr 1fr;align-items:stretch}
+  @media (max-width:840px){.cluster{grid-template-columns:1fr}}
+
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--bg-2));
+    border:1px solid var(--line);border-radius:var(--r);
+    padding:var(--pad);position:relative;overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+  .card h2{margin:0 0 14px;font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--txt-3);font-weight:700;display:flex;align-items:center;gap:8px}
+  .card h2 .pill{margin-left:auto}
+
+  /* ============================ GAUGE CLUSTER ============================ */
+  .gauge-wrap{display:flex;align-items:center;justify-content:center;padding:8px 0 4px}
+  .gauge{width:min(340px,72vw)}
+  .gauge .track{fill:none;stroke:var(--line);stroke-width:14;stroke-linecap:round;opacity:.6}
+  .gauge .fill{fill:none;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .9s cubic-bezier(.2,.7,.2,1), stroke .4s}
+  .gauge .tickmaj{stroke:var(--line);stroke-width:2}
+  .readout{text-align:center;margin-top:-30px}
+  .readout .big{font-family:var(--mono);font-size:clamp(40px,9vw,58px);font-weight:600;line-height:1;letter-spacing:-1px}
+  .readout .big small{font-size:.42em;color:var(--txt-3);font-weight:600;margin-left:4px}
+  .readout .cap{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--txt-3);margin-top:8px}
+  .soc-legend{display:flex;justify-content:center;gap:14px;margin-top:14px;flex-wrap:wrap}
+  .soc-legend span{font-size:10.5px;color:var(--txt-3);letter-spacing:1px;display:inline-flex;gap:6px;align-items:center}
+  .dot{width:8px;height:8px;border-radius:50%}
+
+  .minis{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .mini{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px;position:relative}
+  .mini .lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--txt-3);display:flex;align-items:center;gap:6px}
+  .mini .val{font-family:var(--mono);font-size:30px;font-weight:600;margin-top:8px;line-height:1}
+  .mini .val small{font-size:.42em;color:var(--txt-3);margin-left:3px}
+  .mini .unit{font-size:11px;color:var(--txt-2);margin-top:3px}
+  .mini .arc{position:absolute;right:12px;top:12px;width:34px;height:34px}
+
+  /* status chips */
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line);font-size:12.5px;color:var(--txt-2)}
+  .chip b{font-family:var(--mono);color:var(--txt);font-size:14px}
+  .chip .dot{box-shadow:0 0 8px currentColor}
+
+  /* activity / trend */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  @media (max-width:720px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+
+  .spark{width:100%;height:90px;display:block}
+  .empty{color:var(--txt-3);font-size:13px;padding:18px 4px;text-align:center;border:1px dashed var(--line);border-radius:var(--r-sm)}
+  .empty b{color:var(--txt-2)}
+
+  /* ============================ TASK LIST ============================ */
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .toolbar .grow{margin-left:auto}
+  .filter{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 11px;color:var(--txt-2);font-size:13px}
+
+  .tlist{display:flex;flex-direction:column;gap:12px}
+  .trow{
+    display:grid;grid-template-columns:14px 1fr auto;gap:16px;align-items:center;
+    background:linear-gradient(180deg,var(--panel),var(--bg-2));
+    border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
+    transition:border-color .15s;
+  }
+  .trow:hover{border-color:#34465e}
+  .trow .rail{width:5px;height:100%;min-height:42px;border-radius:4px;align-self:stretch}
+  .trow .name{font-weight:600;font-size:15px}
+  .trow .meta{font-size:11.5px;color:var(--txt-3);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .trow .meta .tag{display:inline-flex;align-items:center;gap:5px}
+  .trow .meta .tag-ms{color:var(--cyan);font-weight:600}
+  .role-tag{font-size:11px;color:var(--txt-3);background:var(--bg-2);border:1px solid var(--line);padding:2px 8px;border-radius:999px}
+  .trow .right{display:flex;align-items:center;gap:16px}
+  .pct{font-family:var(--mono);font-size:22px;font-weight:600;min-width:62px;text-align:right}
+  .pct small{font-size:.5em;color:var(--txt-3)}
+  .bar{width:120px;height:8px;border-radius:6px;background:var(--bg);overflow:hidden;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;border-radius:6px;transition:width .5s}
+  @media (max-width:680px){
+    .trow{grid-template-columns:8px 1fr;}
+    .trow .right{grid-column:1 / -1;justify-content:space-between;border-top:1px solid var(--line-soft);padding-top:12px}
+    .bar{flex:1}
+  }
+  .rowbtns{display:flex;gap:6px}
+  .iconbtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--bg-2);border:1px solid var(--line);color:var(--txt-2);cursor:pointer}
+  .iconbtn:hover{border-color:var(--cyan);color:var(--txt)}
+  .iconbtn svg{width:16px;height:16px}
+
+  .badge{font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:700;border:1px solid}
+  .b-todo{color:var(--txt-2);border-color:var(--line);background:var(--bg-2)}
+  .b-prog{color:var(--cyan);border-color:rgba(22,224,200,.35);background:rgba(22,224,200,.08)}
+  .b-done{color:var(--green);border-color:rgba(91,240,138,.35);background:rgba(91,240,138,.08)}
+  .b-risk{color:var(--red);border-color:rgba(255,77,94,.4);background:rgba(255,77,94,.08)}
+
+  /* ============================ ROADMAP ============================ */
+  .route{position:relative;padding:10px 4px 4px}
+  .route .line{position:absolute;left:26px;top:24px;bottom:24px;width:3px;background:linear-gradient(180deg,var(--cyan),var(--blue));border-radius:3px;opacity:.5}
+  .stop{position:relative;display:grid;grid-template-columns:54px 1fr;gap:16px;padding:14px 0}
+  .stop .node{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--bg-2);border:2px solid var(--line);position:relative;z-index:1;margin-left:6px}
+  .stop .node svg{width:18px;height:18px}
+  .stop.done .node{border-color:var(--green);box-shadow:var(--glow) rgba(91,240,138,.3);color:var(--green)}
+  .stop.next .node{border-color:var(--cyan);box-shadow:var(--glow) rgba(22,224,200,.3);color:var(--cyan)}
+  .stop.over .node{border-color:var(--red);color:var(--red)}
+  .stop .body{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px}
+  .stop .body .t{font-weight:600}
+  .stop .body .d{font-size:11.5px;color:var(--txt-3);margin-top:3px;font-family:var(--mono)}
+  .ms-pct{font-family:var(--mono);font-size:13px;margin-left:6px}
+  .ms-progress{height:6px;border-radius:5px;background:var(--bg);border:1px solid var(--line);overflow:hidden;margin:10px 0 8px}
+  .ms-progress i{display:block;height:100%;border-radius:5px;transition:width .5s}
+  .ms-tasks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  .ms-task{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--txt-2);padding:5px 9px;background:var(--panel);border:1px solid var(--line-soft);border-radius:8px;cursor:pointer;transition:border-color .12s,background .12s}
+  .ms-task:hover{border-color:var(--cyan);background:var(--panel-2)}
+  .ms-task .mt-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ms-task .mt-pct{font-family:var(--mono);font-size:12px;font-weight:600}
+  .dotmini{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 7px currentColor}
+  .ms-empty{font-size:11.5px;color:var(--txt-3);font-style:italic;margin-top:8px}
+
+  /* gantt */
+  .gantt{margin-top:6px}
+  .gant-group{margin-top:2px}
+  .gant-head{display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt);font-weight:700;padding:11px 0 7px;border-top:1px solid var(--line);margin-top:8px}
+  .gant-group:first-child .gant-head{border-top:none;margin-top:0;padding-top:0}
+  .gant-head .gant-meta{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:0;text-transform:none;color:var(--txt-3);font-weight:600}
+  .gbar{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:center;padding:8px 0;border-top:1px solid var(--line-soft)}
+  .gbar:first-child{border-top:none}
+  .gant-head + .gbar{border-top:none}
+
+  /* ============================ TEAM ============================ */
+  .resrow{display:grid;grid-template-columns:34px 1fr 1fr 36px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line-soft)}
+  .resrow:first-child{border-top:none}
+  .resrow .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#04120f;background:linear-gradient(180deg,#1ee9d0,#11b6a3)}
+  .resrow input{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--txt);font-size:13.5px;width:100%}
+  .resrow input:focus{border-color:var(--cyan);outline:none}
+  @media (max-width:600px){.resrow{grid-template-columns:34px 1fr 36px;grid-template-rows:auto auto}.resrow .r-role{grid-column:2 / 4}}
+  .gbar .gname{font-size:13px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gbar .gtrack{position:relative;height:22px;background:var(--bg);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .gbar .gspan{position:absolute;top:0;bottom:0;border-radius:6px;display:flex;align-items:center;padding:0 8px}
+  .gbar .gspan .gp{font-family:var(--mono);font-size:11px;color:#04120f;font-weight:700}
+  .gscale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--txt-3);margin:4px 0 0 174px}
+  @media (max-width:680px){.gbar{grid-template-columns:1fr}.gscale{margin-left:0}}
+
+  /* ============================ REPORTS ============================ */
+  .seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:11px;padding:4px;gap:4px}
+  .seg button{background:transparent;border:none;color:var(--txt-2);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:600}
+  .seg button[aria-selected="true"]{background:linear-gradient(180deg,#1ee9d0,#11b6a3);color:var(--bg)}
+  .report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+  @media (max-width:720px){.report-grid{grid-template-columns:1fr}}
+  .metric{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:16px}
+  .metric .k{font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--txt-3)}
+  .metric .v{font-family:var(--mono);font-size:34px;font-weight:600;margin-top:8px;line-height:1}
+  .metric .v small{font-size:.42em;color:var(--txt-3)}
+  .delta{font-size:12px;margin-top:6px;font-family:var(--mono)}
+  .up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--txt-3)}
+
+  /* ============================ MODAL ============================ */
+  .scrim{position:fixed;inset:0;background:rgba(4,7,11,.72);backdrop-filter:blur(4px);z-index:80;display:none;align-items:flex-start;justify-content:center;padding:5vh 16px;overflow:auto}
+  .scrim.open{display:flex}
+  .modal{width:100%;max-width:560px;background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .modal h3{margin:0 0 4px;font-size:18px}
+  .modal .hint{color:var(--txt-3);font-size:12.5px;margin:0 0 18px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-3);margin-bottom:6px}
+  .field input,.field select,.field textarea{
+    width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:11px 12px;color:var(--txt);font-size:14px;
+  }
+  .field textarea{resize:vertical;min-height:64px}
+  .field .range-wrap{display:flex;align-items:center;gap:14px}
+  .field input[type=range]{accent-color:var(--cyan);flex:1}
+  .field .rval{font-family:var(--mono);font-size:20px;min-width:58px;text-align:right}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:520px){.two{grid-template-columns:1fr}}
+  .modal-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+  .btn.danger{border-color:rgba(255,77,94,.4);color:var(--red);margin-right:auto}
+  .btn.danger:hover{background:rgba(255,77,94,.1)}
+
+  /* milestone editor list */
+  .ms-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .ms-item{display:grid;grid-template-columns:1fr 140px 34px;gap:8px;align-items:center}
+
+  /* toast */
+  .toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+  .toast{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:11px 16px;font-size:13px;box-shadow:0 12px 30px rgba(0,0,0,.5);animation:pop .25s ease both}
+  .toast.ok{border-color:rgba(91,240,138,.4)} .toast.warn{border-color:rgba(255,176,32,.4)}
+  @keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  .pill{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line);color:var(--txt-2)}
+
+  /* project title band */
+  .projbar{
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    background:linear-gradient(180deg,var(--panel),var(--bg-2));
+    border:1px solid var(--line);border-radius:var(--r);
+    padding:16px 20px;margin-bottom:18px;
+  }
+  .pb-main{margin-right:auto;min-width:0}
+  .pb-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--txt-3)}
+  .pb-title{font-size:clamp(20px,3.6vw,28px);margin:4px 0 7px;font-weight:700;letter-spacing:.3px;line-height:1.1}
+  .pb-meta{display:flex;gap:8px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--txt-2);align-items:center}
+  .pb-meta .o{display:inline-flex;align-items:center;gap:8px}
+  .pb-meta .o .k{color:var(--txt-3);text-transform:uppercase;letter-spacing:1px;font-size:10px}
+  .pb-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pb-soc{font-family:var(--mono);font-size:28px;font-weight:600;line-height:1}
+  @media (max-width:560px){.pb-actions{width:100%}.pb-actions .btn{flex:1}}
+
+  /* owner avatar */
+  .avatar{
+    width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none;
+    font-size:10px;font-weight:700;letter-spacing:.3px;
+    background:linear-gradient(180deg,#1ee9d0,#11b6a3);color:#04120f;
+  }
+  .avatar.lg{width:32px;height:32px;font-size:12px}
+  .avatar.muted{background:var(--bg-2);border:1px solid var(--line);color:var(--txt-3)}
+  .owner{display:inline-flex;align-items:center;gap:8px}
+  .owner .nm{font-size:12.5px;color:var(--txt-2);font-weight:600}
+  .owner .nm.none{color:var(--txt-3);font-weight:500;font-style:italic}
+
+  footer.foot{margin-top:30px;text-align:center;color:var(--txt-3);font-size:11px;letter-spacing:1px}
+  footer.foot b{color:var(--txt-2)}
+
+  /* reduced motion */
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+
+  /* required-field marker in modals */
+  .field .req{color:var(--cyan);font-weight:700}
+
+  /* ============================ PRINT (PDF) ============================ */
+  #print-area{display:none}
+  @media print{
+    @page{ margin:16mm 12mm 16mm; }
+    html,body{background:#fff}
+    .app,.scrim,.toasts{display:none !important}
+    #print-area{display:block !important;color:#1b2532;font-family:var(--sans);line-height:1.4}
+    #print-area *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; box-sizing:border-box; }
+
+    /* repeating page header/footer via table groups (reserves space, no overlap) */
+    .rpt-page{ width:100%; border-collapse:collapse; }
+    .rpt-page > thead{ display:table-header-group; }
+    .rpt-page > tfoot{ display:table-footer-group; }
+    .rpt-page > thead > tr > td, .rpt-page > tfoot > tr > td, .rpt-page > tbody > tr > td{ border:none; padding:0; }
+    .rpt-runhead{ display:flex; align-items:center; justify-content:space-between; height:auto; margin:0 0 12px;
+      font-size:9px; letter-spacing:2px; text-transform:uppercase; color:#5b6b7d; border-bottom:1px solid #e2e9f1; padding-bottom:6px; }
+    .rpt-runhead b{ color:#0E9C8C; letter-spacing:3px; }
+    .rpt-foot{ display:flex; align-items:center; justify-content:space-between; margin:14px 0 0;
+      font-size:9px; color:#6b7a8d; border-top:2px solid #16E0C8; padding-top:6px; }
+    .rpt-foot b{ color:#0A0E14; letter-spacing:2px; }
+    .rpt-foot .mid{ color:#0E9C8C; font-weight:700; }
+
+    /* hero banner */
+    .rpt-banner{ position:relative; overflow:hidden; border-radius:14px; padding:26px 28px; margin-bottom:18px; color:#fff;
+      background:linear-gradient(115deg,#0A0E14 0%, #0d242b 52%, #114049 100%); break-inside:avoid; }
+    .rpt-banner::after{ content:""; position:absolute; right:-60px; top:-80px; width:280px; height:280px; border-radius:50%;
+      background:radial-gradient(circle, rgba(22,224,200,.28), transparent 68%); }
+    .rpt-banner .eyebrow{ font-size:10px; letter-spacing:4px; text-transform:uppercase; color:#16E0C8; font-weight:700; }
+    .rpt-banner h1{ font-size:27px; margin:7px 0 5px; letter-spacing:.2px; color:#fff; max-width:78%; }
+    .rpt-banner .sub{ font-size:11.5px; color:#b9c6d6; max-width:78%; }
+    .rpt-banner .mark{ position:absolute; right:26px; top:22px; display:flex; align-items:center; gap:8px; z-index:1;
+      font-size:12px; font-weight:700; letter-spacing:3px; color:#fff; }
+    .rpt-banner .mark b{ color:#16E0C8; }
+    .rpt-banner .hero{ position:absolute; right:28px; bottom:20px; text-align:right; z-index:1; }
+    .rpt-banner .hero .n{ font-size:40px; font-weight:800; line-height:1; color:#16E0C8; }
+    .rpt-banner .hero .l{ font-size:9px; letter-spacing:2px; text-transform:uppercase; color:#9fb0c2; }
+
+    /* KPI strip */
+    .rpt-kpis{ display:flex; gap:10px; margin-bottom:6px; break-inside:avoid; }
+    .rpt-kpi{ flex:1; border:1px solid #e2e9f1; border-radius:11px; padding:11px 13px; background:#f7fafc; }
+    .rpt-kpi .k{ font-size:8.5px; letter-spacing:1.4px; text-transform:uppercase; color:#74838f; }
+    .rpt-kpi .v{ font-size:22px; font-weight:700; color:#0f1722; margin-top:5px; line-height:1; }
+    .rpt-kpi .v small{ font-size:.5em; color:#9aa7b6; font-weight:600; }
+    .rpt-kpi .d{ font-size:9px; margin-top:4px; font-weight:600; }
+    .rpt-kpi .up{ color:#1FA85A; } .rpt-kpi .down{ color:#E23B4E; } .rpt-kpi .flat{ color:#9aa7b6; }
+
+    /* section heads */
+    .rpt-h2{ font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:#0E9C8C; font-weight:700;
+      margin:22px 0 11px; padding-bottom:6px; border-bottom:2px solid #16E0C8; break-after:avoid; }
+
+    /* infographic cards */
+    .rpt-cols{ display:flex; gap:14px; align-items:stretch; break-inside:avoid; }
+    .rpt-card{ border:1px solid #e2e9f1; border-radius:12px; padding:15px; background:#fff; break-inside:avoid; }
+    .rpt-card.grow{ flex:1; }
+    .rpt-card .ct{ font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#8b98a8; font-weight:700; margin-bottom:10px; }
+    .rpt-donut{ display:flex; align-items:center; gap:16px; }
+    .rpt-donut .legend{ font-size:10px; color:#5b6b7d; }
+    .rpt-donut .legend div{ margin:3px 0; }
+
+    /* status breakdown bar */
+    .rpt-statusbar{ height:26px; border-radius:7px; overflow:hidden; display:flex; border:1px solid #e2e9f1; }
+    .rpt-statusbar span{ display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:700; min-width:0; }
+    .rpt-legend{ display:flex; gap:13px; flex-wrap:wrap; margin-top:11px; font-size:10px; color:#5b6b7d; }
+    .rpt-legend span{ display:inline-flex; align-items:center; }
+    .rpt-legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:5px; }
+
+    /* mini trend */
+    .rpt-trend{ width:100%; height:62px; display:block; margin-top:4px; }
+
+    /* milestone route */
+    .rpt-route{ display:flex; gap:6px; flex-wrap:wrap; }
+    .rpt-stop{ flex:1; min-width:120px; border:1px solid #e2e9f1; border-radius:10px; padding:10px 12px; display:flex; gap:10px; align-items:center; background:#f7fafc; break-inside:avoid; }
+    .rpt-node{ width:26px; height:26px; border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex:none; background:#fff; }
+    .rpt-stop .lab b{ display:block; font-size:11px; color:#0f1722; }
+    .rpt-stop .lab span{ font-size:9px; color:#8b98a8; }
+
+    /* task table */
+    .rpt-table{ width:100%; border-collapse:collapse; font-size:10px; }
+    .rpt-table th{ background:#0A0E14; color:#cfeee9; text-align:left; padding:8px 9px; font-size:8.5px; letter-spacing:1px; text-transform:uppercase; }
+    .rpt-table th:first-child{ border-top-left-radius:8px; } .rpt-table th:last-child{ border-top-right-radius:8px; }
+    .rpt-table td{ padding:7px 9px; border-bottom:1px solid #eef2f6; vertical-align:middle; }
+    .rpt-table tr:nth-child(even) td{ background:#f7fafc; }
+    .rpt-table tr{ break-inside:avoid; }
+    .rpt-bar{ height:8px; width:78px; background:#eef2f6; border-radius:5px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:7px; }
+    .rpt-bar i{ display:block; height:100%; border-radius:5px; }
+    #print-area .pill{ padding:2px 9px; border-radius:999px; font-size:8.5px; font-weight:700; white-space:nowrap; }
+    .rpt-note{ font-size:11px; color:#566; background:#f4f8fb; border-left:3px solid #16E0C8; padding:9px 12px; border-radius:0 8px 8px 0; margin:2px 0 4px; }
+
+    /* report gantt */
+    .rpt-gscale{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:8.5px; color:#9aa7b6; margin:0 0 6px 152px; }
+    .rpt-gantgroup{ break-inside:avoid; margin-top:4px; }
+    .rpt-ganthead{ display:flex; align-items:center; font-size:9.5px; font-weight:700; color:#0f1722; text-transform:uppercase; letter-spacing:1px; margin:9px 0 5px; }
+    .rpt-gantdot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:7px; }
+    .rpt-gantmeta{ margin-left:auto; font-weight:600; color:#9aa7b6; text-transform:none; letter-spacing:0; font-size:9px; }
+    .rpt-grow{ display:grid; grid-template-columns:150px 1fr; gap:10px; align-items:center; padding:3px 0; }
+    .rpt-gname{ font-size:9.5px; color:#33404e; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .rpt-gtrack{ position:relative; height:16px; background:#eef2f6; border:1px solid #e2e9f1; border-radius:5px; overflow:hidden; }
+    .rpt-gbar{ position:absolute; top:0; bottom:0; border-radius:4px; display:flex; align-items:center; padding:0 6px; }
+    .rpt-gbar span{ font-size:8px; font-weight:700; color:#04120f; }
+
+    /* auto-generated summary section */
+    .rpt-ai{ border:1px solid #cfeae6; border-radius:12px; padding:16px 18px 14px; background:linear-gradient(180deg,#f2fbfa,#ffffff); position:relative; }
+    .rpt-ai-badge{ position:absolute; right:14px; top:13px; font-size:8px; letter-spacing:1.5px; text-transform:uppercase; font-weight:700; color:#0c8074; background:#d7f7f1; border:1px solid #b6ebe3; padding:3px 9px; border-radius:999px; }
+    .rpt-ai-block{ margin-bottom:11px; break-inside:avoid; }
+    .rpt-ai-block:last-child{ margin-bottom:0; }
+    .rpt-ai-block h4{ margin:0 0 4px; font-size:9.5px; letter-spacing:1.5px; text-transform:uppercase; color:#0E9C8C; }
+    .rpt-ai-block p{ margin:0; font-size:11px; color:#33404e; line-height:1.55; }
+    .rpt-ai-block ul{ margin:7px 0 0; padding-left:18px; }
+    .rpt-ai-block li{ font-size:11px; color:#33404e; margin:3px 0; line-height:1.45; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===================== HEADER ===================== -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#16E0C8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 12l5-3"/><circle cx="12" cy="12" r="1.6" fill="#16E0C8" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Pro<b>MM</b>ISE</h1>
+        <div class="sub">Project Management Monitoring Iteration Scheduling & Execution </div>
+      </div>
+    </div>
+
+    <div class="proj-switch">
+      <span class="pill" style="align-self:center">Project</span>
+      <select class="sel" id="projSel" aria-label="Switch active project"></select>
+      <button class="btn primary icon" id="newProjBtn" title="Create a new project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New project
+      </button>
+      <button class="btn ghost icon" id="editProjBtn" title="Edit this project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <button class="btn ghost icon" id="backupBtn" title="Back up all data to a file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+      </button>
+      <button class="btn ghost icon" id="restoreBtn" title="Restore data from a backup file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M4 7V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3"/></svg>
+      </button>
+      <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <!-- ===================== TABS ===================== -->
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-view="dash" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3 14a9 9 0 0 1 18 0"/></svg>Dashboard
+    </button>
+    <button class="tab" role="tab" data-view="tasks" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>Tasks
+    </button>
+    <button class="tab" role="tab" data-view="road" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V8M19 21V11M12 21V3"/><circle cx="5" cy="6" r="2"/><circle cx="12" cy="3" r="0"/><circle cx="19" cy="9" r="2"/></svg>Roadmap
+    </button>
+    <button class="tab" role="tab" data-view="team" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5"/><path d="M18 14a6 6 0 0 1 3 5"/></svg>Team
+    </button>
+    <button class="tab" role="tab" data-view="report" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6"/><path d="M9 14h6M9 17h6"/></svg>Reports
+    </button>
+          <button class="btn primary icon" id="pbNewBtn" title="Create a new project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New project
+      </button>
+  </nav>
+
+  <!-- ===================== PROJECT TITLE BAND ===================== -->
+  <div class="projbar" id="projBar">
+    <div class="pb-main">
+      <div class="pb-eyebrow">Active project</div>
+      <h2 class="pb-title" id="pbTitle">—</h2>
+      <div class="pb-meta" id="pbMeta"></div>
+    </div>
+    <div class="pb-actions">
+      <span class="pb-soc" id="pbSoc">0%</span>
+      <button class="btn ghost icon" id="pbEditBtn" title="Edit this project's title, owner and dates">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        Edit details
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section class="view active" id="view-dash" role="tabpanel">
+    <div class="grid cluster">
+      <div class="card">
+        <h2>State of Project</h2>
+        <div class="gauge-wrap">
+          <svg class="gauge" id="mainGauge" viewBox="0 0 220 180" aria-hidden="true"></svg>
+        </div>
+        <div class="readout" id="mainReadout">
+          <div class="big">0<small>%</small></div>
+          <div class="cap">Overall completion</div>
+        </div>
+        <div class="soc-legend">
+          <span><i class="dot" style="background:var(--red)"></i>0–25</span>
+          <span><i class="dot" style="background:var(--amber)"></i>25–50</span>
+          <span><i class="dot" style="background:var(--cyan)"></i>50–75</span>
+          <span><i class="dot" style="background:var(--green)"></i>75–100</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Instrument Cluster</h2>
+        <div class="minis" id="minis"></div>
+        <div style="margin-top:16px">
+          <h2 style="margin-bottom:10px">Status</h2>
+          <div class="chips" id="statusChips"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h2>Completion Trend <span class="pill">daily snapshots</span></h2>
+        <svg class="spark" id="trendSpark" viewBox="0 0 600 90" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div id="trendEmpty"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h2>Task Timeline <span class="pill">by milestone</span></h2>
+        <div class="gantt" id="dashGantt"></div>
+        <div class="gscale" id="dashGscale"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h2>Attention Needed</h2>
+        <div id="riskList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TASKS ===================== -->
+  <section class="view" id="view-tasks" role="tabpanel">
+    <div class="toolbar">
+      <button class="btn primary icon" id="addTaskBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add task
+      </button>
+      <select class="filter" id="filterStatus" aria-label="Filter by status">
+        <option value="all">All statuses</option>
+        <option value="todo">Not started</option>
+        <option value="prog">In progress</option>
+        <option value="done">Completed</option>
+        <option value="risk">At risk</option>
+      </select>
+      <select class="filter" id="sortBy" aria-label="Sort tasks">
+        <option value="due">Sort: due date</option>
+        <option value="prog">Sort: progress</option>
+        <option value="prio">Sort: priority</option>
+        <option value="name">Sort: name</option>
+      </select>
+      <span class="pill grow" id="taskCount">0 tasks</span>
+    </div>
+    <div class="tlist" id="taskList"></div>
+  </section>
+
+  <!-- ===================== ROADMAP ===================== -->
+  <section class="view" id="view-road" role="tabpanel">
+    <div class="toolbar">
+      <label for="roadProjSel" style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-3);align-self:center">Project roadmap</label>
+      <select class="sel" id="roadProjSel" aria-label="Choose which project roadmap to view and update"></select>
+      <span class="pill grow" id="roadProjMeta"></span>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h2>Navigation Route <span class="pill">milestones</span></h2>
+        <div class="route" id="route"></div>
+      </div>
+      <div class="card">
+        <h2>Task Timeline</h2>
+        <div class="gantt" id="gantt"></div>
+        <div class="gscale" id="gscale"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TEAM ===================== -->
+  <section class="view" id="view-team" role="tabpanel">
+    <div class="toolbar">
+      <button class="btn primary icon" id="addMemberBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add member
+      </button>
+      <span class="pill grow" id="teamCount">0 members</span>
+    </div>
+    <div class="card">
+      <h2>Resources &amp; responsibilities</h2>
+      <p style="color:var(--txt-3);font-size:12.5px;margin:-6px 0 14px">Add each team member and their job responsibility. They'll appear as selectable owners when you add or edit a task.</p>
+      <div id="teamList"></div>
+    </div>
+  </section>
+
+  <!-- ===================== REPORTS ===================== -->
+  <section class="view" id="view-report" role="tabpanel">
+    <div class="toolbar">
+      <div class="seg" id="periodSeg" role="tablist" aria-label="Reporting period">
+        <button data-p="day" aria-selected="true">Daily</button>
+        <button data-p="week" aria-selected="false">Weekly</button>
+        <button data-p="month" aria-selected="false">Monthly</button>
+      </div>
+      <div class="grow"></div>
+      <button class="btn icon" id="pdfBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6"/></svg>Export PDF
+      </button>
+      <button class="btn icon" id="xlsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l5 5v13H6z"/><path d="M9 12l6 6M15 12l-6 6"/></svg>Export Excel
+      </button>
+    </div>
+
+    <div class="card">
+      <h2 id="reportTitle">Daily report</h2>
+      <div class="report-grid" id="reportMetrics"></div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h2>Progress in this period</h2>
+        <svg class="spark" id="reportSpark" viewBox="0 0 600 90" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div id="reportSparkEmpty"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h2>AI Summary &amp; Assessment <span class="pill">auto-generated</span></h2>
+        <div id="reportNarrative"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <b>ProMMISE</b> runs entirely in your browser · data stays on this device · works offline · designed by Rozz Palacio · created by Claude AI
+  </footer>
+</div>
+
+<!-- ===================== TASK MODAL ===================== -->
+<div class="scrim" id="taskScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+    <h3 id="taskModalTitle">Add task</h3>
+    <p class="hint">Tasks roll up into the project's state-of-charge gauge, weighted by importance.</p>
+    <div class="field">
+      <label for="f_name">Task name</label>
+      <input id="f_name" placeholder="e.g. Wire up the battery telemetry">
+    </div>
+    <div class="field">
+      <label for="f_assignee">Task owner</label>
+      <select id="f_assignee"><option value="">— Unassigned —</option></select>
+      <div style="font-size:11px;color:var(--txt-3);margin-top:5px">Manage people in the <b style="color:var(--cyan)">Team</b> tab.</div>
+    </div>
+    <div class="two">
+      <div class="field">
+        <label for="f_priority">Priority</label>
+        <select id="f_priority">
+          <option value="low">Low</option>
+          <option value="med" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f_weight">Weight (impact 1–5)</label>
+        <select id="f_weight">
+          <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+        </select>
+      </div>
+    </div>
+    <div class="two">
+      <div class="field">
+        <label for="f_start">Start date</label>
+        <input id="f_start" type="date">
+      </div>
+      <div class="field">
+        <label for="f_due">Due date</label>
+        <input id="f_due" type="date">
+      </div>
+    </div>
+    <div class="field" style="margin-top:-6px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt-3)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Duration: <b id="f_duration" style="color:var(--cyan);font-family:var(--mono);font-size:14px">—</b>
+      </div>
+    </div>
+    <div class="field">
+      <label for="f_milestone">Milestone</label>
+      <select id="f_milestone">
+        <option value="">— No milestone —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f_status">Status</label>
+      <select id="f_status">
+        <option value="todo">Not started</option>
+        <option value="prog" selected>In progress</option>
+        <option value="done">Completed</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f_progress">Progress</label>
+      <div class="range-wrap">
+        <input id="f_progress" type="range" min="0" max="100" value="0">
+        <span class="rval"><span id="f_progress_v">0</span>%</span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn danger" id="deleteTaskBtn" type="button">Delete</button>
+      <button class="btn ghost" id="cancelTaskBtn" type="button">Cancel</button>
+      <button class="btn primary" id="saveTaskBtn" type="button">Save task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PROJECT MODAL ===================== -->
+<div class="scrim" id="projScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="projModalTitle">
+    <h3 id="projModalTitle">New project</h3>
+    <p class="hint">Set the route. Start and end dates power the range and efficiency gauges.</p>
+    <div class="field">
+      <label for="p_name">Project title <span class="req">*</span></label>
+      <input id="p_name" placeholder="e.g. Aurora EV Launch">
+    </div>
+    <div class="field">
+      <label for="p_desc">Description</label>
+      <textarea id="p_desc" placeholder="What does done look like?"></textarea>
+    </div>
+    <div class="two">
+      <div class="field">
+        <label for="p_manager">Project manager</label>
+        <input id="p_manager" placeholder="Your name">
+      </div>
+      <div class="field">
+        <label for="p_start">Start date</label>
+        <input id="p_start" type="date">
+      </div>
+    </div>
+    <div class="field">
+      <label for="p_end">Target end date</label>
+      <input id="p_end" type="date">
+    </div>
+    <div class="field">
+      <label>Milestones (route stops)</label>
+      <div class="ms-list" id="msList"></div>
+      <button class="btn ghost icon" id="addMsBtn" type="button" style="margin-top:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add milestone
+      </button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn danger" id="deleteProjBtn" type="button">Delete project</button>
+      <button class="btn ghost" id="cancelProjBtn" type="button">Cancel</button>
+      <button class="btn primary" id="saveProjBtn" type="button">Save project</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div id="print-area"></div>
+
+<script>
+"use strict";
+/* ====================================================================
+   ProMMISES — offline project instrument cluster
+   All data lives in localStorage on this device. No network calls.
+   ==================================================================== */
+
+const KEY = "prommises.v1";
+const todayISO = () => new Date().toISOString().slice(0,10);
+const uid = () => Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-3);
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const clamp = (n,a,b) => Math.max(a, Math.min(b,n));
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+const fmtDate = d => d ? new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : "—";
+
+const initials = name => {
+  const n = String(name||"").trim();
+  if(!n) return "—";
+  const parts = n.split(/\s+/).filter(Boolean);
+  return ((parts[0][0]||"") + (parts.length>1 ? parts[parts.length-1][0] : "")).toUpperCase();
+};
+const ownerChip = (name, big) => {
+  const has = String(name||"").trim();
+  return `<span class="owner"><span class="avatar${big?' lg':''}${has?'':' muted'}">${esc(initials(name))}</span>`
+    + `<span class="nm${has?'':' none'}">${has?esc(name):"Unassigned"}</span></span>`;
+};
+
+let DB = load();
+let currentPeriod = "day";
+
+/* ---------------------- persistence ---------------------- */
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); if(d && d.projects) return d; }
+  }catch(e){ /* fall through to seed */ }
+  return seed();
+}
+function save(){
+  DB.savedAt = Date.now();
+  try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch(e){ toast("Couldn't save locally — storage may be full or disabled.","warn"); }
+}
+function seed(){
+  const start = todayISO();
+  const end = new Date(Date.now()+60*86400000).toISOString().slice(0,10);
+  const r = [
+    {id:uid(), name:"Rozz Palacio", role:"Software Developer"},
+    {id:uid(), name:"Mara Cruz",    role:"UI/UX Designer"},
+    {id:uid(), name:"Ben Alvarez",  role:"Backend Engineer"},
+    {id:uid(), name:"Liza Tan",     role:"QA & Compliance"},
+    {id:uid(), name:"Grace Lim",    role:"Marketing Lead"},
+  ];
+  const mDesign={id:uid(), name:"Design freeze", date:new Date(Date.now()+10*86400000).toISOString().slice(0,10), done:true};
+  const mBeta  ={id:uid(), name:"Beta build",    date:new Date(Date.now()+30*86400000).toISOString().slice(0,10), done:false};
+  const mLaunch={id:uid(), name:"Public launch", date:end, done:false};
+  const p = {
+    id: uid(), name:"Aurora EV Launch",
+    description:"Demo project. Edit it, or create your own from the New button.",
+    manager:"You", startDate:start, endDate:end, createdAt:todayISO(),
+    resources: r,
+    tasks:[
+      mkTask("Battery telemetry firmware", r[0], "high",5,"prog",55, mBeta.id),
+      mkTask("Dashboard UI build",         r[1], "high",4,"prog",70, mDesign.id),
+      mkTask("Charging network API",       r[2], "med", 4,"prog",40, mBeta.id),
+      mkTask("Crash safety certification", r[3], "high",5,"todo",0,  mLaunch.id),
+      mkTask("Marketing site",             r[4], "low", 2,"done",100, mDesign.id),
+    ],
+    milestones:[mDesign, mBeta, mLaunch],
+    snapshots:[]
+  };
+  // spread task dates across the project window
+  p.tasks.forEach((t,i)=>{
+    t.startDate = new Date(Date.now()+(i*4)*86400000).toISOString().slice(0,10);
+    t.dueDate   = new Date(Date.now()+(15+i*9)*86400000).toISOString().slice(0,10);
+  });
+  return { version:1, activeProjectId:p.id, projects:[p], savedAt:Date.now() };
+}
+function mkTask(name, resource, priority, weight, status, progress, milestoneId){
+  return {id:uid(), name,
+    assignee: resource? resource.name : "", resourceId: resource? resource.id : null,
+    priority, weight, status, progress, milestoneId: milestoneId||null,
+    startDate:todayISO(), dueDate:todayISO(), createdAt:todayISO(),
+    updatedAt:todayISO(), completedAt: status==="done"?todayISO():null};
+}
+
+/* ---------------------- model helpers ---------------------- */
+function activeProject(){
+  return DB.projects.find(p=>p.id===DB.activeProjectId) || DB.projects[0] || null;
+}
+/* duration in whole days, inclusive of start and end day */
+function durationDays(start,due){
+  if(!start||!due) return null;
+  const d = daysBetween(start,due);
+  return d>=0 ? d+1 : null;
+}
+function resourceOf(p,t){ return (t && t.resourceId) ? (p.resources||[]).find(r=>r.id===t.resourceId) : null; }
+function roleOf(p,t){ const r=resourceOf(p,t); return r? r.role : ""; }
+function tasksByMs(p,id){ return p.tasks.filter(t=>t.milestoneId===id); }
+function wprog(list){ if(!list.length) return 0; let sw=0,sp=0; list.forEach(t=>{const w=Number(t.weight)||1; sw+=w; sp+=w*clamp(Number(t.progress)||0,0,100);}); return sw?Math.round(sp/sw):0; }
+
+/* shared Gantt model used by Roadmap, Dashboard and the PDF report */
+function ganttModel(p){
+  if(!p.startDate||!p.endDate) return {ok:false,msg:"Set the project start and end dates to see the timeline."};
+  const dated = p.tasks.filter(t=>t.startDate&&t.dueDate);
+  if(!dated.length) return {ok:false,msg:"Add tasks with start and due dates to plot the timeline."};
+  const min=p.startDate, max=p.endDate, span=Math.max(1,daysBetween(min,max));
+  const pos=d=>clamp(daysBetween(min,d)/span*100,0,100);
+  const byStart=(a,b)=>(a.startDate||"~").localeCompare(b.startDate||"~")||(a.dueDate||"~").localeCompare(b.dueDate||"~");
+  const mk=t=>{ const left=pos(t.startDate), right=pos(t.dueDate); return {id:t.id, name:t.name, left, width:Math.max(3,right-left), progress:t.progress, color:socColor(t.progress), dur:durationDays(t.startDate,t.dueDate)}; };
+  const ms=(p.milestones||[]).slice().sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const groups=[];
+  ms.forEach(m=>{
+    const gt=dated.filter(t=>t.milestoneId===m.id).sort(byStart);
+    if(!gt.length) return;
+    const over=!m.done&&m.date&&m.date<todayISO();
+    groups.push({name:m.name, screen:(m.done?getCss('--green'):over?getCss('--red'):getCss('--cyan')),
+      print:(m.done?"#1FA85A":over?"#E23B4E":"#11B6A3"),
+      meta:`${gt.length} task${gt.length===1?"":"s"} · ${wprog(tasksByMs(p,m.id))}%`, tasks:gt.map(mk)});
+  });
+  const un=dated.filter(t=>!t.milestoneId || !ms.some(m=>m.id===t.milestoneId)).sort(byStart);
+  if(un.length) groups.push({name:"Unassigned", screen:getCss('--txt-3'), print:"#9aa7b6",
+    meta:`${un.length} task${un.length===1?"":"s"}`, tasks:un.map(mk)});
+  return {ok:true, min, max, groups};
+}
+function ganttScreenHTML(p){
+  const m=ganttModel(p);
+  if(!m.ok) return {body:`<div class="empty">${m.msg}</div>`, scale:""};
+  const body=m.groups.map(g=>`<div class="gant-group">
+    <div class="gant-head"><span class="dotmini" style="background:${g.screen};color:${g.screen}"></span>${esc(g.name)}<span class="gant-meta">${g.meta}</span></div>
+    ${g.tasks.map(t=>`<div class="gbar" data-edit="${t.id}" style="cursor:pointer" title="Edit ${esc(t.name)}">
+      <div class="gname">${esc(t.name)}</div>
+      <div class="gtrack"><div class="gspan" style="left:${t.left}%;width:${t.width}%;background:linear-gradient(90deg,${t.color},${t.color}aa)"><span class="gp">${t.progress}%</span></div></div>
+    </div>`).join("")}
+  </div>`).join("");
+  const scale=`<span>${fmtDate(m.min)}</span><span>${fmtDate(todayISO())} · today</span><span>${fmtDate(m.max)}</span>`;
+  return {body, scale};
+}
+function ganttPrintHTML(p){
+  const m=ganttModel(p);
+  if(!m.ok) return `<div class="rpt-note">${m.msg}</div>`;
+  const pc=v=> v<25?"#E23B4E":v<50?"#D98A00":v<75?"#11B6A3":"#1FA85A";
+  const scale=`<div class="rpt-gscale"><span>${fmtDate(m.min)}</span><span>${fmtDate(todayISO())} · today</span><span>${fmtDate(m.max)}</span></div>`;
+  const groups=m.groups.map(g=>`<div class="rpt-gantgroup">
+    <div class="rpt-ganthead"><span class="rpt-gantdot" style="background:${g.print}"></span>${esc(g.name)}<span class="rpt-gantmeta">${g.meta}</span></div>
+    ${g.tasks.map(t=>`<div class="rpt-grow"><div class="rpt-gname">${esc(t.name)}</div><div class="rpt-gtrack"><div class="rpt-gbar" style="left:${t.left}%;width:${t.width}%;background:${pc(t.progress)}"><span>${t.progress}%</span></div></div></div>`).join("")}
+  </div>`).join("");
+  return scale+groups;
+}
+function isOverdue(t){ return t.status!=="done" && t.dueDate && t.dueDate < todayISO(); }
+function isDueSoon(t){
+  if(t.status==="done"||!t.dueDate) return false;
+  const d = daysBetween(todayISO(), t.dueDate);
+  return d>=0 && d<=3;
+}
+function effStatus(t){ // resolved status for display
+  if(t.status==="done") return "done";
+  if(isOverdue(t)) return "risk";
+  return t.status; // todo | prog
+}
+
+/* weighted overall completion 0..100 */
+function overall(p){
+  if(!p || !p.tasks.length) return 0;
+  let sw=0, sp=0;
+  p.tasks.forEach(t=>{ const w=Number(t.weight)||1; sw+=w; sp+=w*clamp(Number(t.progress)||0,0,100); });
+  return sw? Math.round(sp/sw) : 0;
+}
+/* schedule-expected completion based on calendar position */
+function expected(p){
+  if(!p||!p.startDate||!p.endDate) return null;
+  const tot = daysBetween(p.startDate,p.endDate);
+  if(tot<=0) return null;
+  const gone = daysBetween(p.startDate,todayISO());
+  return Math.round(clamp(gone/tot,0,1)*100);
+}
+function rangeDays(p){
+  if(!p||!p.endDate) return null;
+  return daysBetween(todayISO(), p.endDate);
+}
+/* record today's snapshot (one per day, latest wins) */
+function snapshot(p){
+  if(!p) return;
+  const v = overall(p);
+  const t = todayISO();
+  p.snapshots = p.snapshots || [];
+  const last = p.snapshots[p.snapshots.length-1];
+  if(last && last.date===t){ last.overall = v; }
+  else { p.snapshots.push({date:t, overall:v}); }
+  if(p.snapshots.length>120) p.snapshots = p.snapshots.slice(-120);
+}
+/* find overall value as of N days ago (nearest earlier snapshot) */
+function overallDaysAgo(p,n){
+  const target = new Date(Date.now()-n*86400000).toISOString().slice(0,10);
+  const snaps = (p.snapshots||[]).filter(s=>s.date<=target);
+  if(snaps.length) return snaps[snaps.length-1].overall;
+  return (p.snapshots&&p.snapshots.length)? p.snapshots[0].overall : 0;
+}
+
+/* color by state of charge bucket */
+function socColor(v){
+  if(v<25) return getCss("--red");
+  if(v<50) return getCss("--amber");
+  if(v<75) return getCss("--cyan");
+  return getCss("--green");
+}
+function getCss(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+/* ---------------------- gauge geometry ---------------------- */
+function polar(cx,cy,r,deg){ const a=(deg-90)*Math.PI/180; return {x:cx+r*Math.cos(a), y:cy+r*Math.sin(a)}; }
+function arc(cx,cy,r,startDeg,endDeg){
+  const s = polar(cx,cy,r,endDeg), e = polar(cx,cy,r,startDeg);
+  const large = (endDeg-startDeg)<=180?0:1;
+  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 0 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+}
+const G_START=225, G_SWEEP=270; // gap centred at bottom
+
+function bigGauge(v){
+  const cx=110, cy=110, r=86;
+  const frac = clamp(v,0,100)/100;
+  const col = socColor(v);
+  // tick marks
+  let ticks="";
+  for(let i=0;i<=10;i++){
+    const ang = G_START + (G_SWEEP*i/10);
+    const o = polar(cx,cy,r+12,ang), inn = polar(cx,cy,r+6,ang);
+    ticks += `<line class="tickmaj" x1="${inn.x.toFixed(1)}" y1="${inn.y.toFixed(1)}" x2="${o.x.toFixed(1)}" y2="${o.y.toFixed(1)}"/>`;
+  }
+  return `
+    <defs>
+      <filter id="gl" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    ${ticks}
+    <path class="track" d="${arc(cx,cy,r,G_START,G_START+G_SWEEP)}"/>
+    <path class="fill" filter="url(#gl)" stroke="${col}" d="${arc(cx,cy,r,G_START,G_START+G_SWEEP*frac)}"/>
+  `;
+}
+function miniArc(v,size){
+  const cx=size/2, cy=size/2, r=size/2-5;
+  const frac=clamp(v,0,100)/100;
+  return `<svg viewBox="0 0 ${size} ${size}">
+    <path d="${arc(cx,cy,r,G_START,G_START+G_SWEEP)}" fill="none" stroke="${getCss('--line')}" stroke-width="4" stroke-linecap="round"/>
+    <path d="${arc(cx,cy,r,G_START,G_START+G_SWEEP*frac)}" fill="none" stroke="${socColor(v)}" stroke-width="4" stroke-linecap="round"/>
+  </svg>`;
+}
+
+/* ---------------------- sparkline ---------------------- */
+function sparkline(svg, snaps, emptyEl){
+  const pts = (snaps||[]).slice(-30);
+  if(pts.length<2){
+    svg.innerHTML="";
+    if(emptyEl) emptyEl.innerHTML = `<div class="empty">Trend builds as you update progress. <b>Come back after a few days</b> of tracking to see the curve.</div>`;
+    return;
+  }
+  if(emptyEl) emptyEl.innerHTML="";
+  const W=600,H=90,pad=6;
+  const xs = (i)=> pad + (W-2*pad)*(i/(pts.length-1));
+  const ys = (v)=> H-pad - (H-2*pad)*(clamp(v,0,100)/100);
+  let line = pts.map((p,i)=>`${i?"L":"M"} ${xs(i).toFixed(1)} ${ys(p.overall).toFixed(1)}`).join(" ");
+  let areaP = line + ` L ${xs(pts.length-1).toFixed(1)} ${H} L ${xs(0).toFixed(1)} ${H} Z`;
+  const last = pts[pts.length-1];
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="spk" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${getCss('--cyan')}" stop-opacity=".35"/>
+        <stop offset="1" stop-color="${getCss('--cyan')}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaP}" fill="url(#spk)"/>
+    <path d="${line}" fill="none" stroke="${getCss('--cyan')}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${xs(pts.length-1).toFixed(1)}" cy="${ys(last.overall).toFixed(1)}" r="3.5" fill="${getCss('--cyan')}"/>
+  `;
+}
+
+/* ====================================================================
+   RENDER
+   ==================================================================== */
+function renderAll(){
+  renderProjectSelect();
+  const p = activeProject();
+  if(!p){ return; }
+  snapshot(p);
+  renderProjBar(p);
+  renderDash(p);
+  renderTasks(p);
+  renderRoadmap(p);
+  renderTeam(p);
+  renderReport(p);
+}
+
+function renderTeam(p){
+  p.resources = p.resources || [];
+  const list = $("#teamList");
+  $("#teamCount").textContent = `${p.resources.length} member${p.resources.length===1?"":"s"}`;
+  if(!p.resources.length){
+    list.innerHTML = `<div class="empty" style="padding:30px">No team members yet. <b>Add the first member</b> and their role.</div>`;
+    return;
+  }
+  list.innerHTML = p.resources.map(r=>{
+    const init = (r.name||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase() || "?";
+    return `<div class="resrow">
+      <span class="av">${esc(init)}</span>
+      <input class="r-name" data-res="${r.id}" data-f="name" value="${esc(r.name||"")}" placeholder="Member name" aria-label="Member name">
+      <input class="r-role" data-res="${r.id}" data-f="role" value="${esc(r.role||"")}" placeholder="Job responsibility (e.g. Software Developer)" aria-label="Role">
+      <button class="iconbtn" data-resdel="${r.id}" title="Remove member" aria-label="Remove ${esc(r.name||"member")}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+    </div>`;
+  }).join("");
+}
+
+function renderProjBar(p){
+  const v = overall(p);
+  $("#pbTitle").textContent = p.name;
+  $("#pbSoc").textContent = v + "%";
+  $("#pbSoc").style.color = socColor(v);
+  const range = (p.startDate && p.endDate) ? `${fmtDate(p.startDate)} → ${fmtDate(p.endDate)}` : "No dates set";
+  $("#pbMeta").innerHTML =
+    `<span class="o"><span class="k">Manager</span>${ownerChip(p.manager)}</span>`
+    + `<span class="o"><span class="k">Timeline</span><span style="font-family:var(--mono)">${range}</span></span>`
+    + `<span class="o"><span class="k">Tasks</span><span style="font-family:var(--mono)">${p.tasks.length}</span></span>`;
+}
+
+function renderProjectSelect(){
+  const sel = $("#projSel");
+  sel.innerHTML = DB.projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  if(activeProject()) sel.value = activeProject().id;
+}
+
+function renderDash(p){
+  const v = overall(p);
+  $("#mainGauge").innerHTML = bigGauge(v);
+  $("#mainReadout").innerHTML =
+    `<div class="big" style="color:${socColor(v)}">${v}<small>%</small></div>
+     <div class="cap">Overall completion</div>`;
+
+  // instrument cluster minis
+  const exp = expected(p);
+  const eff = exp && exp>0 ? Math.round(clamp(v/exp,0,1.5)*100) : null;
+  const rng = rangeDays(p);
+  const pace = v - overallDaysAgo(p,7); // progress gained in a week
+  const minis = [
+    {lbl:"Pace", val: (pace>=0?"+":"")+pace, unit:"% per week", g: clamp(pace*4,0,100)},
+    {lbl:"Range", val: rng==null?"—":rng, unit: rng==null?"no end date": (rng<0?"days overdue":"days to target"), g: rng==null?0:clamp(rng/((daysBetween(p.startDate,p.endDate))||1)*100,0,100)},
+    {lbl:"Efficiency", val: eff==null?"—":eff, unit: eff==null?"set dates": (eff>=100?"ahead of plan":"of schedule pace"), g: eff==null?0:clamp(eff,0,100)},
+    {lbl:"Tasks done", val: p.tasks.filter(t=>t.status==="done").length, unit:`of ${p.tasks.length} systems`, g: p.tasks.length? p.tasks.filter(t=>t.status==="done").length/p.tasks.length*100:0},
+  ];
+  $("#minis").innerHTML = minis.map(m=>`
+    <div class="mini">
+      <div class="arc">${miniArc(m.g,34)}</div>
+      <div class="lbl">${m.lbl}</div>
+      <div class="val">${typeof m.val==="number"&&m.lbl==="Efficiency"?m.val+'<small>%</small>':m.val}</div>
+      <div class="unit">${m.unit}</div>
+    </div>`).join("");
+
+  // status chips
+  const c = {todo:0,prog:0,done:0,risk:0};
+  p.tasks.forEach(t=>{ c[effStatus(t)]++; });
+  $("#statusChips").innerHTML = `
+    <span class="chip"><i class="dot" style="background:var(--txt-3);color:var(--txt-3)"></i>Not started <b>${c.todo}</b></span>
+    <span class="chip"><i class="dot" style="background:var(--cyan);color:var(--cyan)"></i>In progress <b>${c.prog}</b></span>
+    <span class="chip"><i class="dot" style="background:var(--green);color:var(--green)"></i>Completed <b>${c.done}</b></span>
+    <span class="chip"><i class="dot" style="background:var(--red);color:var(--red)"></i>At risk <b>${c.risk}</b></span>`;
+
+  sparkline($("#trendSpark"), p.snapshots, $("#trendEmpty"));
+
+  // Gantt timeline on the dashboard (shared renderer)
+  const dgg = ganttScreenHTML(p);
+  $("#dashGantt").innerHTML = dgg.body;
+  $("#dashGscale").innerHTML = dgg.scale;
+
+  // attention list
+  const risks = p.tasks.filter(t=> effStatus(t)==="risk" || isDueSoon(t)).sort((a,b)=> (a.dueDate||"").localeCompare(b.dueDate||""));
+  const rl = $("#riskList");
+  if(!risks.length){
+    rl.innerHTML = `<div class="empty">Nothing is overdue or due in the next 3 days. <b>You're on the road.</b></div>`;
+  }else{
+    rl.innerHTML = `<div class="tlist">`+risks.map(t=>{
+      const over = isOverdue(t);
+      const d = daysBetween(todayISO(), t.dueDate);
+      return `<div class="trow" data-edit="${t.id}" style="cursor:pointer">
+        <div class="rail" style="background:${over?'var(--red)':'var(--amber)'}"></div>
+        <div><div class="name">${esc(t.name)}</div>
+          <div class="meta">${ownerChip(t.assignee)}
+          <span class="tag" style="color:${over?'var(--red)':'var(--amber)'}">${over? Math.abs(d)+" days overdue" : (d===0?"due today":"due in "+d+" days")}</span></div></div>
+        <div class="right"><span class="pct" style="color:${socColor(t.progress)}">${t.progress}<small>%</small></span></div>
+      </div>`;
+    }).join("")+`</div>`;
+  }
+}
+
+/* ---------------------- tasks ---------------------- */
+function milestoneOf(p,t){ return (t && t.milestoneId) ? (p.milestones||[]).find(m=>m.id===t.milestoneId) : null; }
+
+function renderTasks(p){
+  const fS = $("#filterStatus").value, sB = $("#sortBy").value;
+  let tasks = p.tasks.slice();
+  if(fS!=="all") tasks = tasks.filter(t=> effStatus(t)===fS);
+  const prioRank={high:0,med:1,low:2};
+  tasks.sort((a,b)=>{
+    if(sB==="prog") return b.progress-a.progress;
+    if(sB==="prio") return (prioRank[a.priority]??1)-(prioRank[b.priority]??1);
+    if(sB==="name") return a.name.localeCompare(b.name);
+    return (a.dueDate||"~").localeCompare(b.dueDate||"~");
+  });
+  $("#taskCount").textContent = `${p.tasks.length} task${p.tasks.length===1?"":"s"}`;
+  const list = $("#taskList");
+  if(!p.tasks.length){
+    list.innerHTML = `<div class="empty" style="padding:40px">No tasks yet. <b>Add the first system</b> to start charging the gauge.</div>`;
+    return;
+  }
+  const badge = {todo:["b-todo","Not started"],prog:["b-prog","In progress"],done:["b-done","Completed"],risk:["b-risk","At risk"]};
+  list.innerHTML = tasks.map(t=>{
+    const st = effStatus(t);
+    const [bc,bt] = badge[st];
+    const col = socColor(t.progress);
+    const ms = milestoneOf(p,t);
+    const role = roleOf(p,t);
+    const dur = durationDays(t.startDate,t.dueDate);
+    return `<div class="trow">
+      <div class="rail" style="background:${st==="risk"?'var(--red)':col}"></div>
+      <div>
+        <div class="name">${esc(t.name)}</div>
+        <div class="meta">
+          <span style="display:inline-flex;align-items:center;gap:8px"><span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--txt-3)">Owner</span>${ownerChip(t.assignee)}${role?`<span class="role-tag">${esc(role)}</span>`:""}</span>
+          <span class="tag">due ${fmtDate(t.dueDate)}</span>
+          ${dur!=null?`<span class="tag">${dur} day${dur===1?"":"s"}</span>`:""}
+          <span class="tag">weight ${t.weight}</span>
+          ${ms?`<span class="tag tag-ms"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="8"/></svg>${esc(ms.name)}</span>`:""}
+          <span class="badge ${bc}">${bt}</span>
+        </div>
+      </div>
+      <div class="right">
+        <div class="bar"><i style="width:${t.progress}%;background:${col};box-shadow:0 0 10px ${col}"></i></div>
+        <span class="pct" style="color:${col}">${t.progress}<small>%</small></span>
+        <div class="rowbtns">
+          <button class="iconbtn" data-edit="${t.id}" title="Edit task" aria-label="Edit ${esc(t.name)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------------------- roadmap ---------------------- */
+function renderRoadmap(p){
+  // project chooser — pick which project's roadmap to view and update
+  const rsel = $("#roadProjSel");
+  if(rsel){
+    rsel.innerHTML = DB.projects.map(pr=>`<option value="${pr.id}">${esc(pr.name)}</option>`).join("");
+    rsel.value = p.id;
+  }
+  const msAll = p.milestones||[];
+  const reached = msAll.filter(m=>m.done).length;
+  const meta = $("#roadProjMeta");
+  if(meta) meta.textContent = `${overall(p)}% complete · ${reached}/${msAll.length} stop${msAll.length===1?"":"s"} reached`;
+
+  // clickable task line (opens the task editor)
+  const taskLine = t => `<div class="ms-task" data-edit="${t.id}" title="Edit ${esc(t.name)}"><span class="dotmini" style="background:${socColor(t.progress)}"></span><span class="mt-name">${esc(t.name)}</span><span class="mt-pct" style="color:${socColor(t.progress)}">${t.progress}%</span></div>`;
+
+  // route stops from milestones (sorted by date), each listing its tasks
+  const ms = msAll.slice().sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const route = $("#route");
+  if(!ms.length){
+    route.innerHTML = `<div class="empty">No milestones yet. <b>Edit the project</b> to add route stops, then assign tasks to them.</div>`;
+  }else{
+    const nextIdx = ms.findIndex(m=>!m.done);
+    let html = `<div class="line"></div>` + ms.map((m,i)=>{
+      const over = !m.done && m.date && m.date<todayISO();
+      const cls = m.done?"done":(i===nextIdx?"next":(over?"over":""));
+      const icon = m.done
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="8"/></svg>`;
+      const note = m.done? "Reached" : (over? "Overdue" : "Upcoming");
+      const mtasks = tasksByMs(p, m.id);
+      const prog = wprog(mtasks);
+      const tasksHtml = mtasks.length
+        ? `<div class="ms-progress" title="${prog}% of assigned work complete"><i style="width:${prog}%;background:${socColor(prog)}"></i></div>
+           <div class="ms-tasks">${mtasks.map(taskLine).join("")}</div>`
+        : `<div class="ms-empty">No tasks assigned yet — pick this milestone when adding a task.</div>`;
+      return `<div class="stop ${cls}">
+        <div class="node">${icon}</div>
+        <div class="body">
+          <div class="t">${esc(m.name)}${mtasks.length?` <span class="ms-pct" style="color:${socColor(prog)}">${prog}%</span>`:""}</div>
+          <div class="d">${fmtDate(m.date)} · ${note} · ${mtasks.length} task${mtasks.length===1?"":"s"}</div>
+          ${tasksHtml}
+          <button class="btn ghost ms-toggle" data-ms="${m.id}" style="margin-top:10px;padding:6px 12px;font-size:12px">${m.done?"Mark not reached":"Mark reached"}</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    // unassigned tasks group
+    const unassigned = p.tasks.filter(t=>!t.milestoneId);
+    if(unassigned.length){
+      html += `<div class="stop">
+        <div class="node" style="border-color:var(--line);color:var(--txt-3)">–</div>
+        <div class="body">
+          <div class="t">Unassigned tasks</div>
+          <div class="d">${unassigned.length} task${unassigned.length===1?"":"s"} not linked to a milestone</div>
+          <div class="ms-tasks">${unassigned.map(taskLine).join("")}</div>
+        </div>
+      </div>`;
+    }
+    route.innerHTML = html;
+  }
+
+  // grouped Gantt timeline (shared renderer)
+  const gg = ganttScreenHTML(p);
+  $("#gantt").innerHTML = gg.body;
+  $("#gscale").innerHTML = gg.scale;
+}
+
+/* ---------------------- reports ---------------------- */
+function periodDays(){ return currentPeriod==="day"?1: currentPeriod==="week"?7:30; }
+function periodLabel(){ return currentPeriod==="day"?"Daily": currentPeriod==="week"?"Weekly":"Monthly"; }
+
+function renderReport(p){
+  $("#reportTitle").textContent = periodLabel()+" report";
+  const n = periodDays();
+  const v = overall(p);
+  const prev = overallDaysAgo(p,n);
+  const delta = v - prev;
+  const cutoff = new Date(Date.now()-n*86400000).toISOString().slice(0,10);
+  const completedInPeriod = p.tasks.filter(t=> t.completedAt && t.completedAt>=cutoff).length;
+  const updatedInPeriod = p.tasks.filter(t=> t.updatedAt && t.updatedAt>=cutoff).length;
+  const msInPeriod = (p.milestones||[]).filter(m=> m.date && daysBetween(todayISO(),m.date)>=0 && daysBetween(todayISO(),m.date)<=n).length;
+  const atRisk = p.tasks.filter(t=>effStatus(t)==="risk").length;
+
+  const deltaCls = delta>0?"up":delta<0?"down":"flat";
+  const deltaTxt = (delta>0?"▲ +":delta<0?"▼ ":"– ")+Math.abs(delta)+"% vs start of period";
+
+  const metrics = [
+    {k:"Completion now", v:v+'<small>%</small>', d:deltaTxt, dc:deltaCls},
+    {k:"Completed this "+(currentPeriod==="day"?"day":currentPeriod), v:completedInPeriod, d:`${updatedInPeriod} task${updatedInPeriod===1?"":"s"} touched`, dc:"flat"},
+    {k:"Milestones ahead", v:msInPeriod, d:`in next ${n} day${n===1?"":"s"}`, dc:"flat"},
+    {k:"At risk", v:atRisk, d: atRisk?"needs attention":"all clear", dc: atRisk?"down":"up"},
+    {k:"Active tasks", v:p.tasks.filter(t=>t.status==="prog").length, d:`of ${p.tasks.length} total`, dc:"flat"},
+    {k:"On-schedule pace", v:(()=>{const e=expected(p);return e==null?"—":(e>0?Math.round(v/e*100):0)+'<small>%</small>';})(), d:"actual vs planned", dc:"flat"},
+  ];
+  $("#reportMetrics").innerHTML = metrics.map(m=>`
+    <div class="metric"><div class="k">${m.k}</div><div class="v">${m.v}</div><div class="delta ${m.dc}">${m.d}</div></div>`).join("");
+
+  const recent = (p.snapshots||[]).filter(s=> s.date>=cutoff);
+  sparkline($("#reportSpark"), recent.length>=2?recent:p.snapshots, $("#reportSparkEmpty"));
+
+  // auto-generated narrative (same engine used in the exported report)
+  const nar = buildNarrative(p);
+  const blk = (label,body)=>`<div style="margin-bottom:14px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);font-weight:700;margin-bottom:5px">${label}</div>
+      <div style="font-size:13.5px;color:var(--txt);line-height:1.6">${body}</div></div>`;
+  $("#reportNarrative").innerHTML =
+    `<div style="border-left:3px solid var(--cyan);padding-left:14px">`
+    + blk("Summary", esc(nar.summary))
+    + blk("Assessment", esc(nar.assess))
+    + blk("Conclusion &amp; recommendations",
+        esc(nar.conclusion) + `<ul style="margin:8px 0 0;padding-left:18px">`
+        + nar.recs.map(r=>`<li style="margin:4px 0">${esc(r)}</li>`).join("") + `</ul>`)
+    + `</div>`;
+}
+
+/* ====================================================================
+   TASK MODAL
+   ==================================================================== */
+let editingTaskId = null;
+function openTask(id){
+  const p = activeProject(); if(!p) return;
+  editingTaskId = id;
+  const t = id ? p.tasks.find(x=>x.id===id) : null;
+  $("#taskModalTitle").textContent = t? "Edit task":"Add task";
+  $("#deleteTaskBtn").style.display = t? "inline-block":"none";
+  $("#f_name").value = t? t.name : "";
+  // populate owner choices from team resources (+ preserve any legacy free-text owner)
+  const res = p.resources || [];
+  let ownerOpts = `<option value="">— Unassigned —</option>` +
+    res.map(r=>`<option value="${r.id}">${esc(r.name||"(unnamed)")}${r.role?" — "+esc(r.role):""}</option>`).join("");
+  const legacy = t && t.assignee && !(t.resourceId && res.some(r=>r.id===t.resourceId)) && !res.some(r=>r.name===t.assignee);
+  if(legacy) ownerOpts += `<option value="legacy:${esc(t.assignee)}">${esc(t.assignee)} (not in team)</option>`;
+  $("#f_assignee").innerHTML = ownerOpts;
+  $("#f_assignee").value = t ? (t.resourceId && res.some(r=>r.id===t.resourceId) ? t.resourceId
+      : (legacy ? "legacy:"+t.assignee
+      : (res.find(r=>r.name===t.assignee)?.id || ""))) : "";
+  $("#f_priority").value = t? t.priority : "med";
+  $("#f_start").value = t? t.startDate : todayISO();
+  $("#f_due").value = t? t.dueDate : todayISO();
+  updateDurationField();
+  $("#f_weight").value = t? String(t.weight) : "3";
+  // populate milestone choices for this project
+  const msOpts = (p.milestones||[]).map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  $("#f_milestone").innerHTML = `<option value="">— No milestone —</option>` + msOpts;
+  $("#f_milestone").value = (t && t.milestoneId) ? t.milestoneId : "";
+  $("#f_status").value = t? t.status : "prog";
+  $("#f_progress").value = t? t.progress : 0;
+  $("#f_progress_v").textContent = t? t.progress : 0;
+  $("#taskScrim").classList.add("open");
+  setTimeout(()=>$("#f_name").focus(),50);
+}
+function closeTask(){ $("#taskScrim").classList.remove("open"); editingTaskId=null; }
+function updateDurationField(){
+  const d = durationDays($("#f_start").value, $("#f_due").value);
+  const el = $("#f_duration");
+  if(el) el.textContent = d==null ? "—" : (d+" day"+(d===1?"":"s"));
+}
+
+function saveTask(){
+  const p = activeProject(); if(!p) return;
+  const name = $("#f_name").value.trim();
+  if(!name){ toast("Give the task a name first.","warn"); $("#f_name").focus(); return; }
+  let status = $("#f_status").value;
+  let progress = clamp(parseInt($("#f_progress").value,10)||0,0,100);
+  if(status==="done") progress=100;
+  if(progress===100) status="done";
+  if(status!=="done" && progress>0 && status==="todo") status="prog";
+
+  // resolve owner selection -> name + resource link
+  const ownerVal = $("#f_assignee").value;
+  let assignee = "", resourceId = null;
+  if(ownerVal.startsWith("legacy:")){ assignee = ownerVal.slice(7); }
+  else if(ownerVal){ const r = (p.resources||[]).find(x=>x.id===ownerVal); if(r){ assignee = r.name; resourceId = r.id; } }
+
+  const data = {
+    name, assignee, resourceId,
+    priority:$("#f_priority").value, weight:parseInt($("#f_weight").value,10)||3,
+    startDate:$("#f_start").value, dueDate:$("#f_due").value,
+    milestoneId:$("#f_milestone").value||null,
+    status, progress, updatedAt:todayISO()
+  };
+  if(editingTaskId){
+    const t = p.tasks.find(x=>x.id===editingTaskId);
+    const wasDone = t.status==="done";
+    Object.assign(t, data);
+    if(status==="done" && !wasDone) t.completedAt = todayISO();
+    if(status!=="done") t.completedAt = null;
+    toast("Task updated.","ok");
+  }else{
+    p.tasks.push(Object.assign({id:uid(),createdAt:todayISO(),completedAt: status==="done"?todayISO():null}, data));
+    toast("Task added.","ok");
+  }
+  snapshot(p); save(); closeTask(); renderAll();
+}
+function deleteTask(){
+  const p = activeProject();
+  if(!editingTaskId||!p) return;
+  if(!confirm("Delete this task? This can't be undone.")) return;
+  p.tasks = p.tasks.filter(t=>t.id!==editingTaskId);
+  snapshot(p); save(); closeTask(); renderAll(); toast("Task deleted.","ok");
+}
+
+/* ====================================================================
+   PROJECT MODAL
+   ==================================================================== */
+let editingProj = false;
+let draftMs = [];
+function openProj(edit){
+  editingProj = edit;
+  const p = edit? activeProject() : null;
+  $("#projModalTitle").textContent = edit? "Edit project":"New project";
+  $("#deleteProjBtn").style.display = (edit && DB.projects.length>1)? "inline-block":"none";
+  $("#p_name").value = p? p.name : "";
+  $("#p_desc").value = p? (p.description||"") : "";
+  $("#p_manager").value = p? (p.manager||"") : "";
+  $("#p_start").value = p? p.startDate : todayISO();
+  $("#p_end").value = p? p.endDate : new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+  draftMs = p? (p.milestones||[]).map(m=>({...m})) : [];
+  renderMsEditor();
+  $("#projScrim").classList.add("open");
+  setTimeout(()=>$("#p_name").focus(),50);
+}
+function closeProj(){ $("#projScrim").classList.remove("open"); }
+function renderMsEditor(){
+  const wrap = $("#msList");
+  if(!draftMs.length){ wrap.innerHTML = `<div class="empty" style="padding:10px">No stops yet.</div>`; return; }
+  wrap.innerHTML = draftMs.map((m,i)=>`
+    <div class="ms-item">
+      <input data-ms-name="${i}" value="${esc(m.name)}" placeholder="Milestone name">
+      <input data-ms-date="${i}" type="date" value="${m.date||todayISO()}">
+      <button class="iconbtn" data-ms-del="${i}" title="Remove" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+    </div>`).join("");
+}
+function readMsEditor(){
+  draftMs.forEach((m,i)=>{
+    const n = document.querySelector(`[data-ms-name="${i}"]`); const d = document.querySelector(`[data-ms-date="${i}"]`);
+    if(n) m.name = n.value.trim(); if(d) m.date = d.value;
+  });
+}
+function saveProj(){
+  readMsEditor();
+  const name = $("#p_name").value.trim();
+  if(!name){ toast("Name the project first.","warn"); $("#p_name").focus(); return; }
+  const fields = {
+    name, description:$("#p_desc").value.trim(), manager:$("#p_manager").value.trim(),
+    startDate:$("#p_start").value, endDate:$("#p_end").value,
+    milestones: draftMs.filter(m=>m.name).map(m=>({id:m.id||uid(),name:m.name,date:m.date,done:!!m.done}))
+  };
+  if(editingProj){
+    Object.assign(activeProject(), fields);
+    toast("Project updated.","ok");
+  }else{
+    const np = Object.assign({id:uid(),createdAt:todayISO(),tasks:[],resources:[],snapshots:[]}, fields);
+    DB.projects.push(np); DB.activeProjectId = np.id;
+    toast("Project created.","ok");
+  }
+  save(); closeProj(); renderAll();
+}
+function deleteProj(){
+  if(DB.projects.length<=1){ toast("Keep at least one project.","warn"); return; }
+  if(!confirm("Delete this entire project and its tasks?")) return;
+  DB.projects = DB.projects.filter(p=>p.id!==DB.activeProjectId);
+  DB.activeProjectId = DB.projects[0].id;
+  save(); closeProj(); renderAll(); toast("Project deleted.","ok");
+}
+
+/* ====================================================================
+   EXPORTS  (PDF via print, Excel via .xls, both fully offline)
+   ==================================================================== */
+function download(filename, content, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+
+/* ====================================================================
+   AUTO-NARRATIVE ENGINE
+   Writes a summary, assessment and conclusion from the project's live
+   metrics. Fully offline — no external model needed.
+   ==================================================================== */
+function buildNarrative(p){
+  const plur = (n,w,suf="s") => n+" "+w+(n===1?"":suf);
+  const today = todayISO();
+  const v = overall(p);
+  const exp = expected(p);
+  const eff = exp && exp>0 ? Math.round(v/exp*100) : null;
+  const rng = rangeDays(p);
+  const c = {todo:0,prog:0,done:0,risk:0}; p.tasks.forEach(t=>c[effStatus(t)]++);
+  const total = p.tasks.length;
+  const ms = (p.milestones||[]).slice().sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const reached = ms.filter(m=>m.done).length;
+  const nextMs = ms.find(m=>!m.done && (!m.date || m.date>=today));
+  const overdueMs = ms.filter(m=>!m.done && m.date && m.date<today);
+  const risks = p.tasks.filter(t=>effStatus(t)==="risk");
+  const laggards = p.tasks.filter(t=>t.status!=="done")
+    .sort((a,b)=> (b.weight-a.weight) || (a.progress-b.progress) || ((a.dueDate||"~").localeCompare(b.dueDate||"~")))
+    .slice(0,3);
+  const haveTrend = (p.snapshots||[]).length>=2;
+  const pace7 = v - overallDaysAgo(p,7);
+
+  let health;
+  if(total===0) health="empty";
+  else if(v>=100) health="complete";
+  else if(eff==null) health="unscheduled";
+  else if(eff>=100) health="ahead";
+  else if(eff>=90) health="ontrack";
+  else if(eff>=75) health="slightly-behind";
+  else health="behind";
+
+  // ---------- SUMMARY ----------
+  let summary = `As of ${fmtDate(today)}, “${p.name}” stands at ${v}% overall completion`;
+  if(total) summary += `, with ${plur(c.done,"task")} completed, ${plur(c.prog,"task")} in progress, and ${plur(c.todo,"task")} not yet started across ${total} total.`;
+  else summary += `. No tasks have been defined yet.`;
+  if(ms.length) summary += ` ${reached} of ${plur(ms.length,"milestone")} ${reached===1?"has":"have"} been reached.`;
+  if(p.manager) summary += ` Delivery is led by ${p.manager}.`;
+  if(rng!=null){
+    if(rng>0) summary += ` The target completion date is ${fmtDate(p.endDate)}, ${plur(rng,"day")} out.`;
+    else if(rng===0) summary += ` The target completion date is today.`;
+    else summary += ` The ${fmtDate(p.endDate)} target passed ${plur(-rng,"day")} ago.`;
+  }
+
+  // ---------- ASSESSMENT ----------
+  const assessMap = {
+    complete: `All planned work is finished — the project has reached 100% completion against its task plan.`,
+    ahead: `The project is tracking ahead of schedule: actual progress of ${v}% exceeds the ${exp}% expected by this point in the timeline (schedule efficiency ${eff}%).`,
+    ontrack: `The project is broadly on track: actual progress of ${v}% sits close to the ${exp}% expected by this point (schedule efficiency ${eff}%).`,
+    "slightly-behind": `The project is running slightly behind plan: ${v}% complete against an expected ${exp}% (schedule efficiency ${eff}%).`,
+    behind: `The project is significantly behind plan: only ${v}% complete against an expected ${exp}% — a schedule efficiency of ${eff}%.`,
+    unscheduled: `Schedule health can't be assessed yet because the project's start and end dates aren't both set.`,
+    empty: `There isn't enough data to assess progress — no tasks have been added.`
+  };
+  let assess = assessMap[health];
+  if(total && health!=="empty"){
+    if(haveTrend){
+      if(pace7>0) assess += ` Momentum is positive, adding +${pace7}% over the past week.`;
+      else assess += ` Momentum has flattened, with no net progress recorded in the past week.`;
+    }
+    if(risks.length){
+      const names = risks.slice(0,3).map(t=>`“${t.name}”`).join(", ");
+      assess += ` ${plur(risks.length,"task")} ${risks.length===1?"is":"are"} past due and unfinished${risks.length<=3?" ("+names+")":""}.`;
+    }
+    if(overdueMs.length) assess += ` ${plur(overdueMs.length,"milestone")} ${overdueMs.length===1?"is":"are"} overdue.`;
+    if(!risks.length && !overdueMs.length) assess += ` Nothing is currently overdue.`;
+  }
+
+  // ---------- CONCLUSION + RECOMMENDATIONS ----------
+  let conclusion; const recs=[];
+  if(health==="complete"){
+    conclusion = `“${p.name}” has met its objectives. The recommended next step is an orderly closeout.`;
+    recs.push("Confirm all deliverables are accepted and signed off.");
+    recs.push("Capture lessons learned while they're fresh.");
+    recs.push("Archive the project record and release the team.");
+  }else if(health==="empty"){
+    conclusion = `Establish the work breakdown so the dashboard can produce a meaningful status.`;
+    recs.push("Add the project's key tasks with owners, weights and due dates.");
+    recs.push("Define milestones for the major checkpoints.");
+    recs.push("Set the project start and end dates to enable schedule tracking.");
+  }else{
+    if(health==="ahead") conclusion = `The project is in strong health and ahead of plan; the priority is sustaining momentum and protecting the lead.`;
+    else if(health==="ontrack") conclusion = `The project is in reasonable health; maintain the current pace and keep the next milestone in view.`;
+    else if(health==="slightly-behind") conclusion = `The project needs modest corrective attention to return to plan.`;
+    else if(health==="behind") conclusion = `The project requires decisive corrective action to recover the schedule.`;
+    else conclusion = `Set the project timeline to unlock schedule tracking, then reassess.`;
+
+    if(risks.length) recs.push(`Clear the ${plur(risks.length,"overdue task")} first${risks.length<=3?": "+risks.slice(0,3).map(t=>t.name).join(", "):""}.`);
+    if(laggards.length && (health==="behind"||health==="slightly-behind"))
+      recs.push(`Accelerate the highest-impact unfinished work: ${laggards.map(t=>t.name).join(", ")}.`);
+    if(overdueMs.length) recs.push(`Re-plan or formally close the ${plur(overdueMs.length,"overdue milestone")}.`);
+    if(nextMs) recs.push(`Prepare for the next milestone, “${nextMs.name}”, due ${fmtDate(nextMs.date)}.`);
+    if(rng!=null && rng<0) recs.push(`The target date has passed — agree a revised completion date with stakeholders.`);
+    else if(health==="behind" && rng!=null && rng>=0) recs.push(`Consider rebaselining the ${fmtDate(p.endDate)} target if the gap doesn't close.`);
+    if(c.todo>0 && health!=="ahead") recs.push(`Kick off the ${plur(c.todo,"not-started task")} to keep the pipeline flowing.`);
+    if(!recs.length) recs.push("Continue executing the current plan and review again next period.");
+  }
+
+  return {summary, assess, conclusion, recs, health};
+}
+
+function reportRows(p){
+  const msName = id => { const m=(p.milestones||[]).find(x=>x.id===id); return m?m.name:""; };
+  return p.tasks.map(t=>({
+    Task:t.name, Owner:t.assignee||"", Role:roleOf(p,t), Milestone:msName(t.milestoneId),
+    Status:({todo:"Not started",prog:"In progress",done:"Completed"}[t.status]||t.status),
+    Resolved:({todo:"Not started",prog:"In progress",done:"Completed",risk:"At risk"}[effStatus(t)]),
+    Progress:t.progress+"%", Priority:t.priority, Weight:t.weight,
+    Days:(durationDays(t.startDate,t.dueDate) ?? ""),
+    Start:t.startDate||"", Due:t.dueDate||""
+  }));
+}
+
+function exportPDF(){
+  const p = activeProject(); if(!p) return;
+  const nar = buildNarrative(p);
+  const v = overall(p), exp=expected(p), rng=rangeDays(p);
+  const n = periodDays();
+  const prev = overallDaysAgo(p,n);
+  const delta = v - prev;
+  const ms = (p.milestones||[]).slice().sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const reached = ms.filter(m=>m.done).length;
+  const atRisk = p.tasks.filter(t=>effStatus(t)==="risk").length;
+  const eff = exp && exp>0 ? Math.round(clamp(v/exp,0,1.5)*100) : null;
+
+  // print-legible colors
+  const pc = v=> v<25?"#E23B4E": v<50?"#D98A00": v<75?"#11B6A3":"#1FA85A";
+
+  // ---- donut infographic ----
+  const dR=52, circ=2*Math.PI*dR, off=circ*(1-clamp(v,0,100)/100);
+  const donut = `<svg width="132" height="132" viewBox="0 0 140 140">
+    <circle cx="70" cy="70" r="${dR}" fill="none" stroke="#eef2f6" stroke-width="15"/>
+    <circle cx="70" cy="70" r="${dR}" fill="none" stroke="${pc(v)}" stroke-width="15" stroke-linecap="round"
+      stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 70 70)"/>
+    <text x="70" y="67" text-anchor="middle" font-size="31" font-weight="800" fill="#0f1722">${v}<tspan font-size="14" fill="#9aa7b6">%</tspan></text>
+    <text x="70" y="87" text-anchor="middle" font-size="8.5" letter-spacing="2" fill="#9aa7b6">COMPLETE</text>
+  </svg>`;
+
+  // ---- status breakdown bar ----
+  const c={todo:0,prog:0,done:0,risk:0}; p.tasks.forEach(t=>c[effStatus(t)]++);
+  const total=p.tasks.length||1;
+  const segs=[["done","#1FA85A","Completed"],["prog","#11B6A3","In progress"],["todo","#9aa7b6","Not started"],["risk","#E23B4E","At risk"]];
+  const statusBar = `<div class="rpt-statusbar">`+segs.map(([k,col])=>{
+      const w=c[k]/total*100; return w? `<span style="width:${w}%;background:${col}">${c[k]}</span>`:""; }).join("")+`</div>`
+    + `<div class="rpt-legend">`+segs.map(([k,col,l])=>`<span><i style="background:${col}"></i>${l} (${c[k]})</span>`).join("")+`</div>`;
+
+  // ---- mini trend ----
+  let trend="";
+  const pts=(p.snapshots||[]).slice(-30);
+  if(pts.length>=2){
+    const W=560,H=62,pad=4;
+    const xs=i=>pad+(W-2*pad)*(i/(pts.length-1));
+    const ys=val=>H-pad-(H-2*pad)*(clamp(val,0,100)/100);
+    const line=pts.map((s,i)=>`${i?"L":"M"} ${xs(i).toFixed(1)} ${ys(s.overall).toFixed(1)}`).join(" ");
+    const area=line+` L ${xs(pts.length-1).toFixed(1)} ${H} L ${xs(0).toFixed(1)} ${H} Z`;
+    trend=`<div class="rpt-card grow"><div class="ct">Completion trend</div>
+      <svg class="rpt-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <path d="${area}" fill="#e7faf6"/>
+        <path d="${line}" fill="none" stroke="#11B6A3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg></div>`;
+  }
+
+  // ---- milestone route ----
+  const route = ms.length
+    ? `<div class="rpt-route">`+ms.map(m=>{
+        const over=!m.done && m.date && m.date<todayISO();
+        const col=m.done?"#1FA85A":over?"#E23B4E":"#11B6A3";
+        return `<div class="rpt-stop"><div class="rpt-node" style="border-color:${col};color:${col}">${m.done?"✓":"●"}</div>
+          <div class="lab"><b>${esc(m.name)}</b><span>${fmtDate(m.date)} · ${m.done?"Reached":over?"Overdue":"Upcoming"}</span></div></div>`;
+      }).join("")+`</div>`
+    : `<div class="rpt-note">No milestones defined for this project yet.</div>`;
+
+  // ---- task table ----
+  const pill={todo:["#eef2f6","#5b6b7d","Not started"],prog:["#d7f7f1","#0c8074","In progress"],done:["#dcf3e6","#1a8a4c","Completed"],risk:["#fde0e4","#c52437","At risk"]};
+  const taskRows = p.tasks.length
+    ? p.tasks.map(t=>{
+        const st=effStatus(t); const [bg,fg,lbl]=pill[st]; const bc=pc(t.progress);
+        const mref=(p.milestones||[]).find(m=>m.id===t.milestoneId);
+        const dur=durationDays(t.startDate,t.dueDate);
+        return `<tr>
+          <td><b style="color:#0f1722">${esc(t.name)}</b></td>
+          <td>${esc(t.assignee||"—")}</td>
+          <td>${mref?esc(mref.name):'<span style="color:#aab4c0">—</span>'}</td>
+          <td><span class="pill" style="background:${bg};color:${fg}">${lbl}</span></td>
+          <td style="white-space:nowrap"><span class="rpt-bar"><i style="width:${t.progress}%;background:${bc}"></i></span>${t.progress}%</td>
+          <td style="text-align:center">${dur!=null?dur:"—"}</td>
+          <td style="text-transform:capitalize">${esc(t.priority)}</td>
+          <td>${fmtDate(t.dueDate)}</td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="8" style="text-align:center;color:#9aa7b6;padding:14px">No tasks yet.</td></tr>`;
+
+  const deltaCls = delta>0?"up":delta<0?"down":"flat";
+  const deltaTxt = (delta>0?"▲ +":delta<0?"▼ −":"– ")+Math.abs(delta)+"% this "+(currentPeriod==="day"?"day":currentPeriod);
+
+  $("#print-area").innerHTML = `
+   <table class="rpt-page">
+    <thead><tr><td>
+      <div class="rpt-runhead"><span><b>PROMMISES</b> · Project Status Report</span><span>${periodLabel()} · ${fmtDate(todayISO())}</span></div>
+    </td></tr></thead>
+    <tfoot><tr><td>
+      <div class="rpt-foot">
+        <span><b>PROMMISES</b></span>
+        <span class="mid">${esc(p.name)} — ${periodLabel()} report</span>
+        <span>Generated ${fmtDate(todayISO())}</span>
+      </div>
+    </td></tr></tfoot>
+    <tbody><tr><td>
+
+    <div class="rpt-banner">
+      <div class="mark">PRO<b>MM</b>ISES</div>
+      <div class="eyebrow">${periodLabel()} Status Report</div>
+      <h1>${esc(p.name)}</h1>
+      <div class="sub">Manager: ${esc(p.manager||"—")}  ·  Timeline: ${fmtDate(p.startDate)} → ${fmtDate(p.endDate)}  ·  Generated ${fmtDate(todayISO())}</div>
+      <div class="hero"><div class="n">${v}%</div><div class="l">Overall completion</div></div>
+    </div>
+
+    <div class="rpt-kpis">
+      <div class="rpt-kpi"><div class="k">Completion</div><div class="v">${v}<small>%</small></div><div class="d ${deltaCls}">${deltaTxt}</div></div>
+      <div class="rpt-kpi"><div class="k">Planned pace</div><div class="v">${exp==null?"—":exp+"<small>%</small>"}</div><div class="d flat">by schedule</div></div>
+      <div class="rpt-kpi"><div class="k">Schedule eff.</div><div class="v">${eff==null?"—":eff+"<small>%</small>"}</div><div class="d ${eff!=null&&eff>=100?"up":"flat"}">${eff!=null&&eff>=100?"ahead":"actual vs plan"}</div></div>
+      <div class="rpt-kpi"><div class="k">Days to target</div><div class="v">${rng==null?"—":rng}</div><div class="d ${rng!=null&&rng<0?"down":"flat"}">${rng==null?"no end date":rng<0?"overdue":"remaining"}</div></div>
+      <div class="rpt-kpi"><div class="k">At risk</div><div class="v">${atRisk}</div><div class="d ${atRisk?"down":"up"}">${atRisk?"need attention":"all clear"}</div></div>
+    </div>
+
+    ${p.description?`<div class="rpt-note">${esc(p.description)}</div>`:""}
+
+    <div class="rpt-h2">Overview</div>
+    <div class="rpt-cols">
+      <div class="rpt-card"><div class="ct">Overall completion</div>
+        <div class="rpt-donut">${donut}
+          <div class="legend">
+            <div><b style="color:#0f1722;font-size:13px">${p.tasks.filter(t=>t.status==="done").length}/${p.tasks.length}</b> tasks complete</div>
+            <div>${reached}/${ms.length} milestones reached</div>
+            <div style="color:#8b98a8">Weighted by task impact</div>
+          </div>
+        </div>
+      </div>
+      <div class="rpt-card grow"><div class="ct">Task status breakdown</div>${statusBar}</div>
+    </div>
+    ${trend?`<div style="margin-top:14px">${trend}</div>`:""}
+
+    <div class="rpt-h2">Milestone route</div>
+    ${route}
+
+    <div class="rpt-h2">Timeline (Gantt)</div>
+    ${ganttPrintHTML(p)}
+
+    <div class="rpt-h2">Task details</div>
+    <table class="rpt-table">
+      <thead><tr><th>Task</th><th>Owner</th><th>Milestone</th><th>Status</th><th>Progress</th><th>Days</th><th>Priority</th><th>Due</th></tr></thead>
+      <tbody>${taskRows}</tbody>
+    </table>
+
+    <div class="rpt-h2">Auto-generated Summary &amp; Assessment</div>
+    <div class="rpt-ai">
+      <div class="rpt-ai-badge">✦ AI-generated</div>
+      <div class="rpt-ai-block"><h4>Summary</h4><p>${esc(nar.summary)}</p></div>
+      <div class="rpt-ai-block"><h4>Assessment</h4><p>${esc(nar.assess)}</p></div>
+      <div class="rpt-ai-block"><h4>Conclusion &amp; recommendations</h4><p>${esc(nar.conclusion)}</p>
+        <ul>${nar.recs.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>
+      </div>
+    </div>
+
+    </td></tr></tbody>
+   </table>
+  `;
+  toast("Opening print dialog — pick “Save as PDF”, and enable “Background graphics”.","ok");
+  setTimeout(()=>window.print(), 150);
+}
+
+function exportExcel(){
+  const p = activeProject(); if(!p) return;
+  const rows = reportRows(p);
+  const headers = ["Task","Owner","Role","Milestone","Status","Progress","Priority","Weight","Days","Start","Due"];
+  const v = overall(p), exp=expected(p), rng=rangeDays(p);
+  const atRisk = p.tasks.filter(t=>effStatus(t)==="risk").length;
+  const COLS = headers.length;
+  const stColor = {"Completed":"#dcf3e6","In progress":"#d7f7f1","Not started":"#eef2f6","At risk":"#fde0e4"};
+
+  const cell = (txt,style="") => `<td style="border:1px solid #d6dee7;padding:5px 9px;${style}">${esc(txt)}</td>`;
+  const band = (txt,style) => `<tr><td colspan="${COLS}" style="${style}">${txt}</td></tr>`;
+
+  const title = band(`<span style="font-size:20px;font-weight:bold;color:#ffffff">PRO</span><span style="font-size:20px;font-weight:bold;color:#16E0C8">MM</span><span style="font-size:20px;font-weight:bold;color:#ffffff">ISES &nbsp;·&nbsp; ${esc(p.name)}</span>`,
+    "background:#0A0E14;padding:14px 12px;border:none");
+  const subtitle = band(`${periodLabel()} Status Report · Manager: ${esc(p.manager||"—")} · Timeline ${fmtDate(p.startDate)} → ${fmtDate(p.endDate)} · Generated ${fmtDate(todayISO())}`,
+    "background:#11343a;color:#cfe3e0;padding:7px 12px;border:none;font-size:11px");
+  const spacer = band("&nbsp;","border:none;height:6px");
+
+  const kpis = [["Overall completion",v+"%"],["Planned pace",exp==null?"—":exp+"%"],["Days to target",rng==null?"—":rng],["Total tasks",p.tasks.length],["At risk",atRisk]];
+  const kpiHead = `<tr>${kpis.map(k=>`<td style="border:none;background:#f7fafc;color:#74838f;font-size:9px;padding:6px 9px 0;text-transform:uppercase">${esc(k[0])}</td>`).join("")}${COLS>kpis.length?`<td colspan="${COLS-kpis.length}" style="border:none"></td>`:""}</tr>`;
+  const kpiVal = `<tr>${kpis.map(k=>`<td style="border:none;background:#f7fafc;color:#0f1722;font-size:20px;font-weight:bold;padding:0 9px 8px">${esc(k[1])}</td>`).join("")}${COLS>kpis.length?`<td colspan="${COLS-kpis.length}" style="border:none;background:#f7fafc"></td>`:""}</tr>`;
+
+  const thead = `<tr>${headers.map(h=>`<td style="background:#0A0E14;color:#cfeee9;font-weight:bold;border:1px solid #0A0E14;padding:7px 9px;font-size:10px">${h}</td>`).join("")}</tr>`;
+  const body = rows.map((r,i)=>{
+    const zebra = i%2 ? "background:#f7fafc;" : "background:#ffffff;";
+    return `<tr>`
+      + cell(r.Task, zebra+"font-weight:bold;color:#0f1722")
+      + cell(r.Owner, zebra)
+      + cell(r.Role, zebra+"color:#5b6b7d")
+      + cell(r.Milestone, zebra+"color:#0c8074")
+      + cell(r.Resolved, `background:${stColor[r.Resolved]||"#ffffff"};font-weight:bold`)
+      + cell(r.Progress, zebra+"text-align:center;font-weight:bold;color:#0c8074")
+      + cell(r.Priority, zebra+"text-transform:capitalize")
+      + cell(r.Weight, zebra+"text-align:center")
+      + cell(r.Days, zebra+"text-align:center")
+      + cell(r.Start, zebra)
+      + cell(r.Due, zebra)
+      + `</tr>`;
+  }).join("");
+
+  const nar = buildNarrative(p);
+  const aiHead = band("&#10022; AI-generated Summary &amp; Assessment","background:#0c8074;color:#ffffff;font-weight:bold;padding:8px 12px;border:none;font-size:12px");
+  const aiSub = (label,txt)=> band(`<b style="color:#0E9C8C">${label}</b><br>${esc(txt)}`,"background:#f2fbfa;color:#33404e;padding:8px 12px;border:1px solid #cfeae6;font-size:11px");
+  const recRows = nar.recs.map(r=>band(`&nbsp;&nbsp;• ${esc(r)}`,"background:#ffffff;color:#33404e;padding:4px 12px;border:1px solid #eef2f6;font-size:11px")).join("");
+  const aiBlock = `${spacer}${aiHead}${aiSub("Summary",nar.summary)}${aiSub("Assessment",nar.assess)}${aiSub("Conclusion & recommendations",nar.conclusion)}${recRows}`;
+
+  const table = `<table style="border-collapse:collapse;font-family:Calibri,Arial">${title}${subtitle}${spacer}${kpiHead}${kpiVal}${spacer}${thead}${body}${aiBlock}</table>`;
+  const wb = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8">
+    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+    <x:Name>${esc(p.name).slice(0,28)||"Report"}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+    </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
+    <body>${table}</body></html>`;
+  const fname = (p.name.replace(/[^\w\-]+/g,"_")||"project")+"_"+periodLabel().toLowerCase()+"_"+todayISO()+".xls";
+  download(fname, "\ufeff"+wb, "application/vnd.ms-excel");
+  toast("Excel report downloaded.","ok");
+}
+
+/* ====================================================================
+   BACKUP / RESTORE
+   ==================================================================== */
+function backup(){
+  download("prommises_backup_"+todayISO()+".json", JSON.stringify(DB,null,2), "application/json");
+  toast("Backup downloaded.","ok");
+}
+function restore(file){
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!d || !Array.isArray(d.projects)) throw new Error("bad");
+      if(!confirm("Restore will replace your current data with the backup. Continue?")) return;
+      DB = d;
+      if(!DB.activeProjectId || !DB.projects.find(p=>p.id===DB.activeProjectId))
+        DB.activeProjectId = DB.projects[0] ? DB.projects[0].id : null;
+      save(); renderAll(); toast("Data restored.","ok");
+    }catch(e){ toast("That file isn't a valid ProMMISES backup.","warn"); }
+  };
+  r.readAsText(file);
+}
+
+/* ====================================================================
+   UI WIRING
+   ==================================================================== */
+function switchView(name){
+  $$(".tab").forEach(t=> t.setAttribute("aria-selected", t.dataset.view===name));
+  $$(".view").forEach(v=> v.classList.toggle("active", v.id==="view-"+name));
+}
+function toast(msg, kind){
+  const el = document.createElement("div");
+  el.className = "toast "+(kind||"");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; el.style.transform="translateY(8px)"; el.style.transition="all .3s"; }, 2400);
+  setTimeout(()=> el.remove(), 2800);
+}
+
+function wire(){
+  // tabs
+  $$(".tab").forEach(t=> t.addEventListener("click", ()=>switchView(t.dataset.view)));
+  // project switch
+  $("#projSel").addEventListener("change", e=>{ DB.activeProjectId = e.target.value; save(); renderAll(); });
+  $("#roadProjSel").addEventListener("change", e=>{ DB.activeProjectId = e.target.value; save(); renderAll(); });
+  $("#newProjBtn").addEventListener("click", ()=>openProj(false));
+  $("#editProjBtn").addEventListener("click", ()=>openProj(true));
+  $("#pbNewBtn").addEventListener("click", ()=>openProj(false));
+  $("#pbEditBtn").addEventListener("click", ()=>openProj(true));
+  $("#backupBtn").addEventListener("click", backup);
+  $("#restoreBtn").addEventListener("click", ()=> $("#restoreFile").click());
+  $("#restoreFile").addEventListener("change", e=>{ if(e.target.files[0]) restore(e.target.files[0]); e.target.value=""; });
+
+  // tasks
+  $("#addTaskBtn").addEventListener("click", ()=>openTask(null));
+  $("#filterStatus").addEventListener("change", ()=>renderTasks(activeProject()));
+  $("#sortBy").addEventListener("change", ()=>renderTasks(activeProject()));
+  document.body.addEventListener("click", e=>{
+    const ed = e.target.closest("[data-edit]");
+    if(ed){ openTask(ed.getAttribute("data-edit")); return; }
+    const ms = e.target.closest(".ms-toggle");
+    if(ms){
+      const p = activeProject(); if(!p) return;
+      const m = (p.milestones||[]).find(x=>x.id===ms.getAttribute("data-ms"));
+      if(m){ m.done = !m.done; snapshot(p); save(); renderAll(); toast(m.done?"Milestone marked reached.":"Milestone reopened.","ok"); }
+    }
+  });
+
+  // team
+  $("#addMemberBtn").addEventListener("click", ()=>{
+    const p = activeProject(); if(!p) return;
+    p.resources = p.resources || [];
+    p.resources.push({id:uid(), name:"", role:""});
+    save(); renderTeam(p);
+    const names = document.querySelectorAll("#teamList .r-name");
+    const last = names[names.length-1]; if(last) last.focus();
+  });
+  $("#teamList").addEventListener("input", e=>{
+    const inp = e.target.closest("[data-res]"); if(!inp) return;
+    const p = activeProject(); if(!p) return;
+    const r = (p.resources||[]).find(x=>x.id===inp.getAttribute("data-res")); if(!r) return;
+    r[inp.getAttribute("data-f")] = inp.value;
+    save();
+  });
+  $("#teamList").addEventListener("click", e=>{
+    const del = e.target.closest("[data-resdel]"); if(!del) return;
+    const p = activeProject(); if(!p) return;
+    const id = del.getAttribute("data-resdel");
+    const r = (p.resources||[]).find(x=>x.id===id);
+    if(!confirm("Remove "+((r&&r.name)||"this member")+" from the team? Tasks they own will keep the name but lose the link.")) return;
+    p.resources = (p.resources||[]).filter(x=>x.id!==id);
+    p.tasks.forEach(t=>{ if(t.resourceId===id) t.resourceId=null; });
+    save(); renderAll(); toast("Member removed.","ok");
+  });
+
+  // task modal
+  $("#f_progress").addEventListener("input", e=> $("#f_progress_v").textContent = e.target.value);
+  $("#f_start").addEventListener("input", updateDurationField);
+  $("#f_due").addEventListener("input", updateDurationField);
+  $("#saveTaskBtn").addEventListener("click", saveTask);
+  $("#cancelTaskBtn").addEventListener("click", closeTask);
+  $("#deleteTaskBtn").addEventListener("click", deleteTask);
+  $("#taskScrim").addEventListener("click", e=>{ if(e.target.id==="taskScrim") closeTask(); });
+
+  // project modal
+  $("#saveProjBtn").addEventListener("click", saveProj);
+  $("#cancelProjBtn").addEventListener("click", closeProj);
+  $("#deleteProjBtn").addEventListener("click", deleteProj);
+  $("#projScrim").addEventListener("click", e=>{ if(e.target.id==="projScrim") closeProj(); });
+  $("#addMsBtn").addEventListener("click", ()=>{ readMsEditor(); draftMs.push({id:uid(),name:"",date:todayISO(),done:false}); renderMsEditor(); });
+  $("#msList").addEventListener("click", e=>{
+    const del = e.target.closest("[data-ms-del]");
+    if(del){ readMsEditor(); draftMs.splice(+del.getAttribute("data-ms-del"),1); renderMsEditor(); }
+  });
+
+  // reports
+  $("#periodSeg").addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    currentPeriod = b.dataset.p;
+    $$("#periodSeg button").forEach(x=> x.setAttribute("aria-selected", x===b));
+    renderReport(activeProject());
+  });
+  $("#pdfBtn").addEventListener("click", exportPDF);
+  $("#xlsBtn").addEventListener("click", exportExcel);
+
+  // keyboard: Esc closes modals
+  document.addEventListener("keydown", e=>{
+    if(e.key==="Escape"){ closeTask(); closeProj(); }
+  });
+}
+
+wire();
+renderAll();
+save();
+</script>
+<script>
+  /* Register the service worker only when served over http/https (hosted).
+     When opened as a single local file (file://) this is skipped, so the
+     standalone offline file keeps working without any helper files. */
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){ /* offline file or no sw.js — ignore */ });
+    });
+  }
+</script>
+</body>
+</html>
